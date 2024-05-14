@@ -45,11 +45,3 @@ Este projeto é um sistema de monitoramento de câmeras em Go que grava vídeos 
     3.	Commit suas alterações (git commit -m 'Adiciona nova feature')
     4.	Push para a branch (git push origin feature/nova-feature)
     5.	Crie um novo Pull Request
-
-## Licença
-
-Distribuído sob a licença MIT. Veja `LICENSE` para mais informações.
-
-```
-
-```
