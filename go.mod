@@ -21,5 +21,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.24.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.7 // indirect
 	github.com/aws/smithy-go v1.20.2 // indirect
+	github.com/gorilla/websocket v1.5.1 // indirect
 	gocv.io/x/gocv v0.36.1 // indirect
+	golang.org/x/net v0.17.0 // indirect
 )

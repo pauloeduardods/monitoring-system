@@ -17,11 +17,11 @@ type Webcam struct {
 	logger             *logger.Logger
 	outputChan         chan gocv.Mat
 	cameraCapabilities CameraCapabilities
-	context            context.Context
+	ctx                context.Context
 }
 
 func NewWebcam(ctx context.Context, deviceID int, logger *logger.Logger) Camera {
-	return &Webcam{deviceID: deviceID, logger: logger, context: ctx, outputChan: make(chan gocv.Mat)}
+	return &Webcam{deviceID: deviceID, logger: logger, ctx: ctx, outputChan: make(chan gocv.Mat)}
 }
 
 func (w *Webcam) Start() error {
@@ -55,7 +55,6 @@ func (w *Webcam) Start() error {
 
 func (w *Webcam) Stop() error {
 	err := w.webcam.Close()
-	close(w.outputChan)
 	return err
 }
 
@@ -63,12 +62,13 @@ func (w *Webcam) capture() {
 	defer w.Stop()
 	for {
 		select {
-		case <-w.context.Done():
+		case <-w.ctx.Done():
+			w.logger.Info("Webcam capture stopped")
 			return
 		default:
 			img := gocv.NewMat()
 			if ok := w.webcam.Read(&img); !ok {
-				fmt.Printf("Cannot read from device %d\n", w.deviceID)
+				w.logger.Warning("Cannot read from device %d\n", w.deviceID)
 				return
 			}
 			if img.Empty() {
@@ -79,7 +79,7 @@ func (w *Webcam) capture() {
 			scale := 1.5
 			color := color.RGBA{R: 255, G: 255, B: 255, A: 0}
 			thickness := 2
-			position := image.Point{X: 10, Y: w.cameraCapabilities.Width - 10}
+			position := image.Point{X: 10, Y: w.cameraCapabilities.Height - 10}
 
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
 			gocv.PutText(&img, timestamp, position, font, scale, color, thickness)
@@ -104,12 +104,13 @@ func (w *Webcam) SetFPS(fps float64) error {
 
 func (w *Webcam) Capture() ([]byte, error) {
 	select {
-	case <-w.context.Done():
+	case <-w.ctx.Done():
+		w.logger.Info("Webcam capture stopped")
 		return nil, nil
 	case img := <-w.outputChan:
 		buf, err := gocv.IMEncode(gocv.JPEGFileExt, img)
 		if err != nil {
-			fmt.Printf("Error encoding image: %v\n", err)
+			w.logger.Error("Error encoding image: %v\n", err)
 			return nil, err
 		}
 
@@ -137,11 +138,6 @@ func (w *Webcam) RecordVideo(ctx context.Context, filename string) error {
 		case <-ctx.Done():
 			return nil
 		case img := <-w.outputChan:
-			if err != nil {
-				w.logger.Warning("Error capturing image %v", err)
-				continue
-			}
-
 			writer.Write(img)
 		}
 	}
