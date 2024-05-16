@@ -63,7 +63,7 @@ func main() {
 }
 
 func (a *Application) runApplication() {
-	cam := camera.NewWebcam(0, a.logger) //make multiple
+	cam := camera.NewWebcam(a.ctx, 0, a.logger) //make multiple
 	if err := cam.Start(); err != nil {
 		a.logger.Error("Error starting camera %v", err)
 		return

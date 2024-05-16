@@ -2,17 +2,15 @@ package camera
 
 import (
 	"context"
-
-	"gocv.io/x/gocv"
 )
 
 type Camera interface {
 	Start() error
 	Stop() error
-	GetCapabilities() (CameraCapabilities, error)
-	RecordVideo(ctx context.Context, filename string) error
-	Capture() (*gocv.Mat, error)
+	GetCapabilities() CameraCapabilities
 	SetFPS(fps float64) error
+	RecordVideo(ctx context.Context, filename string) error
+	Capture() ([]byte, error)
 }
 
 type CameraCapabilities struct {
