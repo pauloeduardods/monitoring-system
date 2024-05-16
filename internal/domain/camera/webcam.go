@@ -34,6 +34,19 @@ func (w *Webcam) Stop() error {
 	return w.webcam.Close()
 }
 
+func (w *Webcam) GetFPS() (float64, error) {
+	fps := w.webcam.Get(gocv.VideoCaptureFPS)
+	if fps == 0 {
+		return 0, fmt.Errorf("unable to get FPS for device: %d", w.deviceID)
+	}
+	return fps, nil
+}
+
+func (w *Webcam) SetFPS(fps float64) error {
+	w.webcam.Set(gocv.VideoCaptureFPS, fps)
+	return nil
+}
+
 func (w *Webcam) Capture() (*gocv.Mat, error) {
 	img := gocv.NewMat()
 	if ok := w.webcam.Read(&img); !ok {
@@ -45,13 +58,22 @@ func (w *Webcam) Capture() (*gocv.Mat, error) {
 	return &img, nil
 }
 
-func (c *Webcam) GetDimensions() (int, int, error) {
+func (c *Webcam) GetCapabilities() (CameraCapabilities, error) {
 	width := c.webcam.Get(gocv.VideoCaptureFrameWidth)
 	height := c.webcam.Get(gocv.VideoCaptureFrameHeight)
 	if width == 0 || height == 0 {
-		return 0, 0, fmt.Errorf("unable to get dimensions for device: %d", c.deviceID)
+		return CameraCapabilities{}, fmt.Errorf("unable to get dimensions for device: %d", c.deviceID)
 	}
-	return int(width), int(height), nil
+	fps := c.webcam.Get(gocv.VideoCaptureFPS)
+	if fps == 0 {
+		return CameraCapabilities{}, fmt.Errorf("unable to get FPS for device: %d", c.deviceID)
+	}
+	return CameraCapabilities{
+		DeviceID: c.deviceID,
+		Width:    int(width),
+		Height:   int(height),
+		FPS:      fps,
+	}, nil
 }
 
 func (c *Webcam) Close() {
@@ -59,12 +81,12 @@ func (c *Webcam) Close() {
 }
 
 func (w *Webcam) RecordVideo(ctx context.Context, filename string) error {
-	width, height, err := w.GetDimensions()
+	capabilities, err := w.GetCapabilities()
 	if err != nil {
 		return err
 	}
 
-	writer, err := gocv.VideoWriterFile(filename, "MJPG", 20, width, height, true)
+	writer, err := gocv.VideoWriterFile(filename, "MJPG", capabilities.FPS, capabilities.Width, capabilities.Height, true)
 	if err != nil {
 		return err
 	}
@@ -74,7 +96,7 @@ func (w *Webcam) RecordVideo(ctx context.Context, filename string) error {
 	scale := 1.5
 	color := color.RGBA{R: 255, G: 255, B: 255, A: 0}
 	thickness := 2
-	position := image.Point{X: 10, Y: height - 10}
+	position := image.Point{X: 10, Y: capabilities.Width - 10}
 
 	for {
 		select {
