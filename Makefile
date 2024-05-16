@@ -20,7 +20,7 @@ build: fmt vet
 	$(GO) build -o $(BINARY) $(CMD_DIR)/main.go
 
 run: build
-	AWS_REGION=$(AWS_REGION) S3_BUCKET_NAME=$(S3_BUCKET) $(BINARY)
+	AWS_REGION=$(AWS_REGION) S3_BUCKET_NAME=$(S3_BUCKET_NAME) $(BINARY)
 
 fmt:
 	$(GOFMT) -w $(CMD_DIR) $(CONFIG_DIR) $(INTERNAL_DIR) $(PKG_DIR)

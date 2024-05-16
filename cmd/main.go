@@ -32,9 +32,14 @@ func main() {
 	}
 	defer cam.Stop()
 
-	duration := 5 * time.Second
 	filename := fmt.Sprintf("video_%s.avi", time.Now().Format("20060102_150405"))
-	if err := camera.RecordVideo(cam, filename, duration); err != nil {
+
+	duration := 5 * time.Second
+	start := time.Now()
+	condition := func() bool {
+		return time.Since(start) < duration
+	}
+	if err := cam.RecordVideo(filename, condition); err != nil {
 		logger.Error("Error recording video %v", err)
 		return
 	}
