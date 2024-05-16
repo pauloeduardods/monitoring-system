@@ -1,6 +1,7 @@
 package camera
 
 import (
+	"context"
 	"fmt"
 	"image"
 	"image/color"
@@ -14,7 +15,7 @@ type Webcam struct {
 	webcam   *gocv.VideoCapture
 }
 
-func NewWebcam(deviceID int) *Webcam {
+func NewWebcam(deviceID int) Camera {
 	return &Webcam{deviceID: deviceID}
 }
 
@@ -31,7 +32,7 @@ func (w *Webcam) Stop() error {
 	return w.webcam.Close()
 }
 
-func (w *Webcam) capture() (gocv.Mat, error) {
+func (w *Webcam) Capture() (gocv.Mat, error) {
 	img := gocv.NewMat()
 	if ok := w.webcam.Read(&img); !ok {
 		return img, fmt.Errorf("cannot read from device %d", w.deviceID)
@@ -55,7 +56,7 @@ func (c *Webcam) Close() {
 	c.webcam.Close()
 }
 
-func (w *Webcam) RecordVideo(filename string, condition func() bool) error {
+func (w *Webcam) RecordVideo(ctx context.Context, filename string) error {
 	width, height, err := w.GetDimensions()
 	if err != nil {
 		return err
@@ -73,16 +74,19 @@ func (w *Webcam) RecordVideo(filename string, condition func() bool) error {
 	thickness := 2
 	position := image.Point{X: 10, Y: height - 10}
 
-	for condition() {
-		img, err := w.capture()
-		if err != nil {
-			return err
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			img, err := w.Capture()
+			if err != nil {
+				return err
+			}
+			timestamp := time.Now().Format("2006-01-02 15:04:05")
+			gocv.PutText(&img, timestamp, position, font, scale, color, thickness)
+
+			writer.Write(img)
 		}
-		timestamp := time.Now().Format("2006-01-02 15:04:05")
-		gocv.PutText(&img, timestamp, position, font, scale, color, thickness)
-
-		writer.Write(img)
 	}
-
-	return nil
 }
