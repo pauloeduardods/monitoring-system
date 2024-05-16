@@ -11,5 +11,5 @@ type Camera interface {
 	Stop() error
 	GetDimensions() (int, int, error)
 	RecordVideo(ctx context.Context, filename string) error
-	Capture() (gocv.Mat, error)
+	Capture() (*gocv.Mat, error)
 }

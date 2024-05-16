@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"monitoring-system/pkg/logger"
 	"time"
 
 	"gocv.io/x/gocv"
@@ -13,10 +14,11 @@ import (
 type Webcam struct {
 	deviceID int
 	webcam   *gocv.VideoCapture
+	logger   *logger.Logger
 }
 
-func NewWebcam(deviceID int) Camera {
-	return &Webcam{deviceID: deviceID}
+func NewWebcam(deviceID int, logger *logger.Logger) Camera {
+	return &Webcam{deviceID: deviceID, logger: logger}
 }
 
 func (w *Webcam) Start() error {
@@ -32,15 +34,15 @@ func (w *Webcam) Stop() error {
 	return w.webcam.Close()
 }
 
-func (w *Webcam) Capture() (gocv.Mat, error) {
+func (w *Webcam) Capture() (*gocv.Mat, error) {
 	img := gocv.NewMat()
 	if ok := w.webcam.Read(&img); !ok {
-		return img, fmt.Errorf("cannot read from device %d", w.deviceID)
+		return &img, fmt.Errorf("cannot read from device %d", w.deviceID)
 	}
 	if img.Empty() {
-		return img, fmt.Errorf("no image captured")
+		return &img, fmt.Errorf("no image captured")
 	}
-	return img, nil
+	return &img, nil
 }
 
 func (c *Webcam) GetDimensions() (int, int, error) {
@@ -81,12 +83,13 @@ func (w *Webcam) RecordVideo(ctx context.Context, filename string) error {
 		default:
 			img, err := w.Capture()
 			if err != nil {
-				return err
+				w.logger.Warning("Error capturing image %v", err)
+				continue
 			}
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
-			gocv.PutText(&img, timestamp, position, font, scale, color, thickness)
+			gocv.PutText(img, timestamp, position, font, scale, color, thickness)
 
-			writer.Write(img)
+			writer.Write(*img)
 		}
 	}
 }
