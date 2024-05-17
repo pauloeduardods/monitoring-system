@@ -14,13 +14,13 @@ type AuthHandler struct {
 }
 
 type RegisterRequest struct {
-	Username string `json:"username" binding:"required" validate:"email"`
+	Username string `json:"username" binding:"required" validate:"min=3,max=50"`
 	Password string `json:"password" binding:"required" validate:"min=8"`
 	// Name     string `json:"name" binding:"required" validate:"min=3,max=50"`
 }
 
 type LoginRequest struct {
-	Username string `json:"username" binding:"required" validate:"email"`
+	Username string `json:"username" binding:"required" validate:"min=3,max=50"`
 	Password string `json:"password" binding:"required" validate:"min=8"`
 }
 
