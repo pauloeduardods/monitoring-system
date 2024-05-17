@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"monitoring-system/cmd/api"
 	"monitoring-system/cmd/websocket"
 	"monitoring-system/config"
 	"monitoring-system/internal/domain/camera"
-	"monitoring-system/internal/domain/storage"
+	"monitoring-system/internal/storage"
 	"monitoring-system/pkg/logger"
 	"net/http"
 	"os"
@@ -14,15 +16,18 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type Application struct {
-	logger  *logger.Logger
+	logger  logger.Logger
 	storage storage.Storage
 	config  *config.Config
 	ctx     context.Context
 	cam     camera.Camera
 	wg      *sync.WaitGroup
+	sqlDB   *sql.DB
 }
 
 func main() {
@@ -57,6 +62,13 @@ func main() {
 		return
 	}
 
+	db, err := sql.Open("sqlite3", "./monitoring.db")
+	if err != nil {
+		logger.Error("Error opening database %v", err)
+		return
+	}
+	defer db.Close()
+
 	cam := camera.NewWebcam(ctx, 0, logger) //make multiple
 
 	var wg sync.WaitGroup
@@ -70,7 +82,15 @@ func main() {
 		wg:      &wg,
 	}
 
-	wg.Add(2)
+	api := api.New(ctx, awsConfig, appConfig, logger, db)
+
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		if err := api.Start(); err != nil {
+			logger.Error("Error starting server %v", err)
+		}
+	}()
 	go app.runApplication()
 	go app.startServer()
 

@@ -13,12 +13,12 @@ import (
 )
 
 type S3 struct {
-	logger *logger.Logger
+	logger logger.Logger
 	client *s3.Client
 	bucket string
 }
 
-func NewStorage(logger *logger.Logger, awsConf *aws.Config, bucket string) (*S3, error) {
+func NewStorage(logger logger.Logger, awsConf *aws.Config, bucket string) (*S3, error) {
 	logger.Info("Creating new S3 storage")
 
 	return &S3{

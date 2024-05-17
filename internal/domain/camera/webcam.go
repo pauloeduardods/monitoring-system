@@ -14,13 +14,13 @@ import (
 type Webcam struct {
 	deviceID           int
 	webcam             *gocv.VideoCapture
-	logger             *logger.Logger
+	logger             logger.Logger
 	outputChan         chan gocv.Mat
 	cameraCapabilities CameraCapabilities
 	ctx                context.Context
 }
 
-func NewWebcam(ctx context.Context, deviceID int, logger *logger.Logger) Camera {
+func NewWebcam(ctx context.Context, deviceID int, logger logger.Logger) Camera {
 	return &Webcam{deviceID: deviceID, logger: logger, ctx: ctx, outputChan: make(chan gocv.Mat)}
 }
 

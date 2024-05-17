@@ -16,10 +16,10 @@ var upgrader = websocket.Upgrader{
 }
 
 type WebSocketServer struct {
-	logger *logger.Logger
+	logger logger.Logger
 }
 
-func NewWebSocketServer(logger *logger.Logger) *WebSocketServer {
+func NewWebSocketServer(logger logger.Logger) *WebSocketServer {
 	return &WebSocketServer{
 		logger: logger,
 	}

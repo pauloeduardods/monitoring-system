@@ -7,25 +7,31 @@ import (
 	"strings"
 )
 
-type Logger struct{}
-
-func NewLogger() *Logger {
-	return &Logger{}
+type Logger interface {
+	Info(format string, v ...interface{})
+	Error(format string, v ...interface{})
+	Warning(format string, v ...interface{})
 }
 
-func (l *Logger) Info(format string, v ...interface{}) {
+type logger struct{}
+
+func NewLogger() Logger {
+	return &logger{}
+}
+
+func (l *logger) Info(format string, v ...interface{}) {
 	l.logWithCallerInfo("INFO", format, v...)
 }
 
-func (l *Logger) Error(format string, v ...interface{}) {
+func (l *logger) Error(format string, v ...interface{}) {
 	l.logWithCallerInfo("ERROR", format, v...)
 }
 
-func (l *Logger) Warning(format string, v ...interface{}) {
+func (l *logger) Warning(format string, v ...interface{}) {
 	l.logWithCallerInfo("WARNING", format, v...)
 }
 
-func (l *Logger) logWithCallerInfo(level, format string, v ...interface{}) {
+func (l *logger) logWithCallerInfo(level, format string, v ...interface{}) {
 	_, file, line, ok := runtime.Caller(2)
 	if !ok {
 		file = "???"
