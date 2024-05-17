@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"database/sql"
-	"monitoring-system/cmd/server/websocket"
 	"monitoring-system/config"
 	"monitoring-system/internal/domain/camera"
 	"monitoring-system/pkg/logger"
@@ -60,12 +59,6 @@ func (s *Server) Start() error {
 		Addr:    s.config.Host + ":" + strconv.Itoa(s.config.Port),
 		Handler: s.gin,
 	}
-
-	ginWs := s.gin.Group("/ws")
-	wsServer := websocket.NewWebSocketServer(s.ctx, s.log, ginWs, s.cam)
-	wsServer.Start()
-
-	s.gin.StaticFS("/static", http.Dir("web/static"))
 
 	err := s.server.ListenAndServe()
 	if err != nil {

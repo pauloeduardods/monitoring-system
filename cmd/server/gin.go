@@ -4,7 +4,9 @@ import (
 	"monitoring-system/cmd/server/gin/handlers"
 	"monitoring-system/cmd/server/gin/middleware"
 	"monitoring-system/cmd/server/gin/routes"
+	"monitoring-system/cmd/server/websocket"
 	"monitoring-system/internal/auth"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -27,7 +29,14 @@ func (s *Server) SetupMiddlewares() {
 }
 
 func (s *Server) SetupApi() error {
-	// static.SetupStaticFiles(s.gin)
+
+	//Websocket
+	ginWs := s.gin.Group("/ws")
+	wsServer := websocket.NewWebSocketServer(s.ctx, s.log, ginWs, s.cam)
+	wsServer.Start()
+
+	//Static files
+	s.gin.StaticFS("/static", http.Dir("web/static"))
 
 	//Repositories
 	authRepository, err := auth.NewAuthRepository(s.sqlDB, s.log)
@@ -37,7 +46,6 @@ func (s *Server) SetupApi() error {
 	}
 
 	//Services
-
 	authService, err := auth.NewAuthService(authRepository, s.log)
 	if err != nil {
 		s.log.Error("Error creating auth service %v", err)
@@ -45,11 +53,9 @@ func (s *Server) SetupApi() error {
 	}
 
 	//Handlers
-
 	authHandler := handlers.NewAuthHandler(authService, s.validator)
 
 	//Middlewares
-
 	// authMiddleware := middleware.NewAuthMiddleware(authService)
 
 	//Routes
