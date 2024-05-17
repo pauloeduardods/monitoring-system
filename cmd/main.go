@@ -28,7 +28,11 @@ type Application struct {
 }
 
 func main() {
-	logger := logger.NewLogger()
+	logger, err := logger.NewLogger("development")
+	if err != nil {
+		fmt.Printf("Error creating logger %v", err)
+		return
+	}
 	appConfig, err := config.NewConfig()
 	if err != nil {
 		logger.Error("Error loading configuration %v", err)
