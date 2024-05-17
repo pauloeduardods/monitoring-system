@@ -1,9 +1,9 @@
-package api
+package server
 
 import (
-	"monitoring-system/cmd/api/gin/handlers"
-	"monitoring-system/cmd/api/gin/middleware"
-	"monitoring-system/cmd/api/gin/routes"
+	"monitoring-system/cmd/server/gin/handlers"
+	"monitoring-system/cmd/server/gin/middleware"
+	"monitoring-system/cmd/server/gin/routes"
 	"monitoring-system/internal/auth"
 
 	"github.com/gin-gonic/gin"

@@ -1,9 +1,11 @@
-package api
+package server
 
 import (
 	"context"
 	"database/sql"
+	"monitoring-system/cmd/server/websocket"
 	"monitoring-system/config"
+	"monitoring-system/internal/domain/camera"
 	"monitoring-system/pkg/logger"
 	"monitoring-system/pkg/validator"
 	"net/http"
@@ -21,9 +23,10 @@ type Server struct {
 	validator validator.Validator
 	ctx       context.Context
 	sqlDB     *sql.DB
+	cam       camera.Camera
 }
 
-func New(ctx context.Context, awsConfig *aws.Config, config *config.Config, logger logger.Logger, sqlDB *sql.DB) *Server {
+func New(ctx context.Context, awsConfig *aws.Config, config *config.Config, logger logger.Logger, sqlDB *sql.DB, cam camera.Camera) *Server {
 	gin := gin.Default()
 
 	return &Server{
@@ -33,6 +36,7 @@ func New(ctx context.Context, awsConfig *aws.Config, config *config.Config, logg
 		validator: validator.NewValidatorImpl(),
 		ctx:       ctx,
 		sqlDB:     sqlDB,
+		cam:       cam,
 	}
 }
 
@@ -57,7 +61,18 @@ func (s *Server) Start() error {
 		Handler: s.gin,
 	}
 
-	return s.server.ListenAndServe()
+	ginWs := s.gin.Group("/ws")
+	wsServer := websocket.NewWebSocketServer(s.ctx, s.log, ginWs, s.cam)
+	wsServer.Start()
+
+	s.gin.StaticFS("/static", http.Dir("web/static"))
+
+	err := s.server.ListenAndServe()
+	if err != nil {
+		s.log.Error("Error starting server: %v", err)
+		return err
+	}
+	return nil
 }
 
 func (s *Server) Stop() error {

@@ -10,7 +10,8 @@
     <img id="videoStream" width="640" height="480" />
     <script>
       const videoStream = document.getElementById("videoStream");
-      const ws = new WebSocket(`ws://${window.location.host}/video`);
+      console.log(window.location.host);
+      const ws = new WebSocket(`ws://${window.location.host}/ws/video`);
 
       ws.binaryType = "arraybuffer";
       ws.onmessage = function (event) {

@@ -67,13 +67,20 @@ func (w *Webcam) capture() {
 			return
 		default:
 			img := gocv.NewMat()
-			if ok := w.webcam.Read(&img); !ok {
+
+			ok := w.webcam.Read(&img)
+			if !ok || img.Empty() {
 				w.logger.Warning("Cannot read from device %d\n", w.deviceID)
-				return
+
+				img = gocv.NewMatWithSize(w.cameraCapabilities.Height, w.cameraCapabilities.Width, gocv.MatTypeCV8UC3)
+				img.SetTo(gocv.NewScalar(0, 0, 0, 0))
 			}
-			if img.Empty() {
-				continue
-			}
+			// if img.Empty() {
+			// 	w.logger.Warning("Empty image from device %d\n", w.deviceID)
+
+			// 	img = gocv.NewMatWithSize(w.cameraCapabilities.Height, w.cameraCapabilities.Width, gocv.MatTypeCV8UC3)
+			// 	img.SetTo(gocv.NewScalar(0, 0, 0, 0))
+			// }
 
 			font := gocv.FontHersheyPlain
 			scale := 1.5
