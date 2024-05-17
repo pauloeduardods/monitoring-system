@@ -8,13 +8,18 @@ import (
 
 type Auth interface {
 	Register(username, password string) error
-	Login(username, password string) (string, error)
+	Login(username, password string) (Token, error)
 	ValidateToken(tokenString string) (*Claims, error)
 }
 
 type AuthService struct {
 	authRepository AuthRepository
 	logger         logger.Logger
+}
+
+type Token struct {
+	Token string `json:"token"`
+	// RefreshToken string `json:"refresh_token"` //TODO: Implement refresh token
 }
 
 func NewAuthService(authRepository AuthRepository, logger logger.Logger) (Auth, error) {
@@ -31,17 +36,22 @@ func (s *AuthService) Register(username, password string) error {
 	return err
 }
 
-func (s *AuthService) Login(username, password string) (string, error) {
+func (s *AuthService) Login(username, password string) (Token, error) {
 	entity, err := s.authRepository.GetByUsername(username)
 
 	if err != nil {
-		return "", err
+		return Token{}, err
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(entity.Password), []byte(password))
 	if err != nil {
-		return "", err
+		return Token{}, err
 	}
 
-	return s.generateToken(username)
+	token, err := s.generateToken(username)
+	if err != nil {
+		return Token{}, err
+	}
+
+	return Token{Token: token}, nil
 }
