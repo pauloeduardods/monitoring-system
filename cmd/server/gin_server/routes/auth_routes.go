@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"monitoring-system/cmd/server/gin/handlers"
+	"monitoring-system/cmd/server/gin_server/handlers"
 
 	"github.com/gin-gonic/gin"
 )

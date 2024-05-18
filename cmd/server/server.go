@@ -2,48 +2,44 @@ package server
 
 import (
 	"context"
-	"database/sql"
+	"monitoring-system/cmd/server/gin_server"
+	"monitoring-system/cmd/server/modules"
 	"monitoring-system/config"
-	"monitoring-system/internal/domain/camera"
 	"monitoring-system/pkg/logger"
 	"monitoring-system/pkg/validator"
 	"net/http"
 	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/gin-gonic/gin"
 )
 
 type Server struct {
-	log       logger.Logger
-	config    *config.Config
-	gin       *gin.Engine
-	server    *http.Server
-	validator validator.Validator
-	ctx       context.Context
-	sqlDB     *sql.DB
-	cam       camera.Camera
+	log        logger.Logger
+	config     *config.Config
+	gin_server *gin_server.Gin
+	server     *http.Server
+	validator  validator.Validator
+	ctx        context.Context
 }
 
-func New(ctx context.Context, awsConfig *aws.Config, config *config.Config, logger logger.Logger, sqlDB *sql.DB, cam camera.Camera) *Server {
-	gin := gin.Default()
+func New(ctx context.Context, awsConfig *aws.Config, config *config.Config, logger logger.Logger, module *modules.Modules) *Server {
+	gin := gin_server.New(ctx, logger, module, validator.NewValidatorImpl())
 
 	return &Server{
-		config:    config,
-		gin:       gin,
-		log:       logger,
-		validator: validator.NewValidatorImpl(),
-		ctx:       ctx,
-		sqlDB:     sqlDB,
-		cam:       cam,
+		config:     config,
+		gin_server: gin,
+		log:        logger,
+		validator:  validator.NewValidatorImpl(),
+		ctx:        ctx,
 	}
 }
 
 func (s *Server) Start() error {
 	s.log.Info("Starting server %s:%d", s.config.Host, s.config.Port)
-	s.SetupCors()
-	s.SetupMiddlewares()
-	s.SetupApi()
+
+	s.gin_server.SetupCors()
+	s.gin_server.SetupMiddlewares()
+	s.gin_server.SetupApi()
 
 	go func() {
 		<-s.ctx.Done()
@@ -57,7 +53,7 @@ func (s *Server) Start() error {
 
 	s.server = &http.Server{
 		Addr:    s.config.Host + ":" + strconv.Itoa(s.config.Port),
-		Handler: s.gin,
+		Handler: s.gin_server.Gin,
 	}
 
 	err := s.server.ListenAndServe()

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"monitoring-system/cmd/server"
+	"monitoring-system/cmd/server/modules"
 	"monitoring-system/config"
 	"monitoring-system/internal/domain/camera"
 	"monitoring-system/internal/storage"
@@ -25,6 +26,7 @@ type Application struct {
 	ctx     context.Context
 	cam     camera.Camera
 	sqlDB   *sql.DB
+	modules *modules.Modules
 }
 
 func main() {
@@ -78,6 +80,12 @@ func main() {
 	}
 	defer cam.Stop() //Check if this is the right place to put this
 
+	modules, err := modules.New(logger, db, cam)
+	if err != nil {
+		logger.Error("Error creating modules %v", err)
+		return
+	}
+
 	app := &Application{
 		logger:  logger,
 		storage: storage,
@@ -85,9 +93,10 @@ func main() {
 		ctx:     ctx,
 		cam:     cam,
 		sqlDB:   db,
+		modules: modules,
 	}
 
-	server := server.New(ctx, awsConfig, appConfig, logger, db, cam)
+	server := server.New(ctx, awsConfig, appConfig, logger, modules)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
