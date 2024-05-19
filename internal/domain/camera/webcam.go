@@ -24,6 +24,41 @@ func NewWebcam(ctx context.Context, deviceID int, logger logger.Logger) Camera {
 	return &Webcam{deviceID: deviceID, logger: logger, ctx: ctx, outputChan: make(chan gocv.Mat)}
 }
 
+func (w *Webcam) getCameraCapabilities() (CameraCapabilities, error) {
+	webcam, err := gocv.OpenVideoCapture(w.deviceID)
+	if err != nil {
+		return CameraCapabilities{}, err
+	}
+	defer webcam.Close()
+
+	width := webcam.Get(gocv.VideoCaptureFrameWidth)
+	height := webcam.Get(gocv.VideoCaptureFrameHeight)
+	if width == 0 || height == 0 {
+		return CameraCapabilities{}, fmt.Errorf("unable to get dimensions for device: %d", w.deviceID)
+	}
+
+	fps := webcam.Get(gocv.VideoCaptureFPS)
+	if fps == 0 {
+		return CameraCapabilities{}, fmt.Errorf("unable to get FPS for device: %d", w.deviceID)
+	}
+
+	return CameraCapabilities{
+		DeviceID: w.deviceID,
+		Width:    int(width),
+		Height:   int(height),
+		FPS:      fps,
+	}, nil
+}
+
+func (w *Webcam) Check() (CameraCapabilities, error) {
+	webcam, err := gocv.OpenVideoCapture(w.deviceID)
+	if err != nil {
+		return CameraCapabilities{}, err
+	}
+	defer webcam.Close()
+	return w.getCameraCapabilities()
+}
+
 func (w *Webcam) Start() error {
 	webcam, err := gocv.OpenVideoCapture(w.deviceID)
 	if err != nil {
@@ -31,23 +66,11 @@ func (w *Webcam) Start() error {
 	}
 	w.webcam = webcam
 
-	width := w.webcam.Get(gocv.VideoCaptureFrameWidth)
-	height := w.webcam.Get(gocv.VideoCaptureFrameHeight)
-	if width == 0 || height == 0 {
-		return fmt.Errorf("unable to get dimensions for device: %d", w.deviceID)
+	capabilities, err := w.getCameraCapabilities()
+	if err != nil {
+		return err
 	}
-
-	fps := w.webcam.Get(gocv.VideoCaptureFPS)
-	if fps == 0 {
-		return fmt.Errorf("unable to get FPS for device: %d", w.deviceID)
-	}
-
-	w.cameraCapabilities = CameraCapabilities{
-		DeviceID: w.deviceID,
-		Width:    int(width),
-		Height:   int(height),
-		FPS:      fps,
-	}
+	w.cameraCapabilities = capabilities
 
 	go w.capture()
 	return nil
@@ -143,6 +166,7 @@ func (w *Webcam) RecordVideo(ctx context.Context, filename string) error {
 	for {
 		select {
 		case <-ctx.Done():
+		case <-w.ctx.Done():
 			return nil
 		case img := <-w.outputChan:
 			writer.Write(img)

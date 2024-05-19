@@ -5,6 +5,7 @@ import (
 )
 
 type Camera interface {
+	Check() (CameraCapabilities, error)
 	Start() error
 	Stop() error
 	GetCapabilities() CameraCapabilities
