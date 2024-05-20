@@ -2,21 +2,25 @@ package camera_manager
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"monitoring-system/config"
 	"monitoring-system/internal/domain/camera"
 	"monitoring-system/pkg/logger"
 	"sync"
-)
 
-const MAX_DEVICES = 10
+	_ "github.com/mattn/go-sqlite3"
+)
 
 type CameraManager interface {
 	UpdateCameraStatus() error
 	ListCameras() []Camera
 	ListRunningCameras() []Camera
 	GetCamera(deviceID int) (Camera, error)
-	StartCamera(deviceID int) error
-	StopCamera(deviceID int) error
+	AddCamera(deviceID int, name string) error
+	RemoveCamera(deviceID int) error
+	RenameCamera(deviceID int, name string) error
+	Close() error
 }
 
 type Status string
@@ -25,60 +29,105 @@ const (
 	Connected    Status = "connected"
 	Disconnected Status = "disconnected"
 	Running      Status = "running"
+	Removed      Status = "removed"
 )
 
 type Camera struct {
-	Status Status
 	Id     int
+	Name   string
+	Status Status
 	Camera camera.Camera
 }
 
 type cameraManager struct {
-	mu      sync.Mutex
-	cameras map[int]Camera
-	logger  logger.Logger
-	ctx     context.Context
-	// sqlDB         *sql.DB //TODO: Save camera data to a database
+	mu           sync.Mutex
+	cameras      map[int]Camera
+	logger       logger.Logger
+	ctx          context.Context
+	cameraConfig config.CamerasConfig
+	db           *sql.DB
 }
 
-func NewCameraManager(ctx context.Context, logger logger.Logger) CameraManager {
-	cameras := make(map[int]Camera)
-	for i := 0; i < MAX_DEVICES; i++ {
-		cameras[i] = Camera{
-			Status: Disconnected,
-			Id:     i,
-			Camera: camera.NewWebcam(ctx, i, logger),
-		}
+func NewCameraManager(ctx context.Context, logger logger.Logger, db *sql.DB, cameraConfig config.CamerasConfig) (CameraManager, error) {
+	cm := &cameraManager{
+		cameras:      make(map[int]Camera),
+		logger:       logger,
+		ctx:          ctx,
+		db:           db,
+		cameraConfig: cameraConfig,
 	}
-	return &cameraManager{
-		cameras: cameras,
-		logger:  logger,
-		ctx:     ctx,
+
+	err := cm.loadCamerasFromDB()
+	if err != nil {
+		return nil, err
 	}
+
+	return cm, nil
+}
+
+func (cm *cameraManager) startCameraNoLock(deviceID int) error {
+	cam, exists := cm.cameras[deviceID]
+	if !exists {
+		return errors.New("camera not found")
+	}
+
+	switch cam.Status {
+	case Running:
+		return nil
+	case Removed:
+		return errors.New("camera is removed")
+	case Disconnected:
+		return errors.New("camera is disconnected")
+	case Connected:
+	}
+
+	if err := cam.Camera.Start(); err != nil {
+		return err
+	}
+	cam.Status = Running
+	cm.cameras[deviceID] = cam
+	cm.saveCameraToDB(cam)
+	return nil
 }
 
 func (cm *cameraManager) UpdateCameraStatus() error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	connectedCameras := cm.cameras
-	for i := 0; i < MAX_DEVICES; i++ {
-		if entry, ok := connectedCameras[i]; ok {
+	cm.logger.Info("Updating camera status %v", cm.cameraConfig.MaxCameraCount)
+
+	for i := 0; i < cm.cameraConfig.MaxCameraCount; i++ {
+		var cam Camera
+		if entry, ok := cm.cameras[i]; ok {
+			cam = entry
 			_, err := entry.Camera.Check()
 			if err != nil {
-				entry.Status = Disconnected
-				cm.cameras[i] = entry
-				continue
+				cam.Status = Disconnected
+			} else {
+				cam.Status = Connected
 			}
-			entry.Status = Connected
-			cm.cameras[i] = entry
 		} else {
-			cm.cameras[i] = Camera{
-				Status: Disconnected,
-				Id:     i,
-				Camera: camera.NewWebcam(cm.ctx, i, cm.logger),
+			var cam Camera
+			webCam := camera.NewWebcam(cm.ctx, i, cm.logger)
+			cam.Camera = webCam
+			cam.Id = i
+			cam.Name = ""
+			_, err := cam.Camera.Check()
+			if err != nil {
+				cam.Status = Disconnected
+			} else {
+				cam.Status = Connected
 			}
 		}
+		cm.logger.Info("Camera %d status: %s", i, cam.Status)
+		if cam.Status == Connected {
+			err := cm.startCameraNoLock(i)
+			if err != nil {
+				cm.logger.Error("Error starting camera %d: %v\n", i, err)
+			}
+		}
+		cm.cameras[i] = cam
+		cm.saveCameraToDB(cam)
 	}
 
 	return nil
@@ -88,10 +137,9 @@ func (cm *cameraManager) ListCameras() []Camera {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	cameras := make([]Camera, MAX_DEVICES)
-
-	for i := 0; i < MAX_DEVICES; i++ {
-		cameras[i] = cm.cameras[i]
+	cameras := make([]Camera, 0, cm.cameraConfig.MaxCameraCount)
+	for _, cam := range cm.cameras {
+		cameras = append(cameras, cam)
 	}
 
 	return cameras
@@ -103,9 +151,9 @@ func (cm *cameraManager) ListRunningCameras() []Camera {
 
 	runningCameras := make([]Camera, 0)
 
-	for i := 0; i < MAX_DEVICES; i++ {
-		if cm.cameras[i].Status == Running {
-			runningCameras = append(runningCameras, cm.cameras[i])
+	for _, cam := range cm.cameras {
+		if cam.Status == Running {
+			runningCameras = append(runningCameras, cam)
 		}
 	}
 
@@ -125,7 +173,7 @@ func (cm *cameraManager) GetCamera(deviceID int) (Camera, error) {
 	return cam, nil
 }
 
-func (cm *cameraManager) StartCamera(deviceID int) error {
+func (cm *cameraManager) AddCamera(deviceID int, name string) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -134,17 +182,48 @@ func (cm *cameraManager) StartCamera(deviceID int) error {
 		return errors.New("camera not found")
 	}
 
-	if cam.Status == Running {
-		return nil
+	switch cam.Status {
+	case Running:
+		return errors.New("camera is running")
+	case Disconnected:
+		return errors.New("camera is disconnected")
+	case Connected:
+	case Removed:
 	}
-	// if cam.Status == Disconnected {
-	// 	return errors.New("camera is disconnected")
-	// }
-
-	return cam.Camera.Start()
+	cam.Name = name
+	cam.Status = Connected
+	cm.cameras[deviceID] = cam
+	return cm.saveCameraToDB(cam)
 }
 
-func (cm *cameraManager) StopCamera(deviceID int) error {
+func (cm *cameraManager) RemoveCamera(deviceID int) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	entry, exists := cm.cameras[deviceID]
+	if !exists {
+		return errors.New("camera not found")
+	}
+
+	switch entry.Status {
+	case Disconnected:
+		return errors.New("camera is disconnected")
+	case Removed:
+		return errors.New("camera is already removed")
+	case Connected:
+	case Running:
+	}
+
+	err := entry.Camera.Stop()
+	if err != nil {
+		return err
+	}
+
+	entry.Status = Removed
+	return cm.saveCameraToDB(cm.cameras[deviceID])
+}
+
+func (cm *cameraManager) RenameCamera(deviceID int, name string) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -153,9 +232,23 @@ func (cm *cameraManager) StopCamera(deviceID int) error {
 		return errors.New("camera not found")
 	}
 
-	if cam.Status != Running {
-		return nil
+	cam.Name = name
+	cm.cameras[deviceID] = cam
+	return cm.saveCameraToDB(cam)
+}
+
+func (cm *cameraManager) Close() error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	for _, cam := range cm.cameras {
+		if cam.Status == Running {
+			err := cam.Camera.Stop()
+			if err != nil {
+				cm.logger.Error("Error stopping camera %d: %v\n", cam.Id, err)
+			}
+		}
 	}
 
-	return cam.Camera.Stop()
+	return nil
 }

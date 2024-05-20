@@ -17,9 +17,14 @@ type ApiConfig struct {
 	Port int
 }
 
+type CamerasConfig struct {
+	MaxCameraCount int
+}
+
 type Config struct {
-	Aws AwsConfig
-	Api ApiConfig
+	Aws     AwsConfig
+	Api     ApiConfig
+	Cameras CamerasConfig
 }
 
 type ConfigManager struct {
@@ -41,12 +46,23 @@ func NewConfigManager(configDb *sql.DB) (*ConfigManager, error) {
 		port INTEGER NOT NULL
 	);`
 
+	createCamerasConfigTable := `
+	CREATE TABLE IF NOT EXISTS cameras_config (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		max_camera_count INTEGER NOT NULL
+	);`
+
 	_, err := configDb.Exec(createAWSConfigTable)
 	if err != nil {
 		return nil, err
 	}
 
 	_, err = configDb.Exec(createApiConfigTable)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = configDb.Exec(createCamerasConfigTable)
 	if err != nil {
 		return nil, err
 	}
@@ -70,9 +86,15 @@ func (cm *ConfigManager) LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
+	camerasConfig, err := cm.loadCamerasConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
-		Aws: *awsConfig,
-		Api: *apiConfig,
+		Aws:     *awsConfig,
+		Api:     *apiConfig,
+		Cameras: *camerasConfig,
 	}, nil
 }
 
@@ -93,6 +115,16 @@ func (cm *ConfigManager) loadApiConfig() (*ApiConfig, error) {
 		return nil, fmt.Errorf("error loading API config: %v", err)
 	}
 	return &ApiConfig{Host: host, Port: port}, nil
+}
+
+func (cm *ConfigManager) loadCamerasConfig() (*CamerasConfig, error) {
+	row := cm.db.QueryRow("SELECT max_camera_count FROM cameras_config LIMIT 1")
+	var maxCameraCount int
+	if err := row.Scan(&maxCameraCount); err != nil {
+		return nil, fmt.Errorf("error loading cameras config: %v", err)
+	}
+
+	return &CamerasConfig{MaxCameraCount: maxCameraCount}, nil
 }
 
 func (cm *ConfigManager) SaveAWSConfig(config *AwsConfig) error {
@@ -126,6 +158,18 @@ func insertDefaultConfigs(db *sql.DB) error {
 		_, err := db.Exec("INSERT INTO api_config (host, port) VALUES (?, ?)", "localhost", 3000)
 		if err != nil {
 			return fmt.Errorf("error inserting default API config: %v", err)
+		}
+	}
+
+	row = db.QueryRow("SELECT COUNT(*) FROM cameras_config")
+	if err := row.Scan(&count); err != nil {
+		return fmt.Errorf("error checking cameras config table: %v", err)
+	}
+
+	if count == 0 {
+		_, err := db.Exec("INSERT INTO cameras_config (max_camera_count) VALUES (?)", 10)
+		if err != nil {
+			return fmt.Errorf("error inserting default cameras config: %v", err)
 		}
 	}
 
