@@ -3,7 +3,7 @@ package modules
 import (
 	"database/sql"
 	"monitoring-system/internal/auth"
-	"monitoring-system/internal/domain/camera"
+	"monitoring-system/internal/domain/camera_manager"
 	"monitoring-system/pkg/logger"
 )
 
@@ -22,7 +22,7 @@ type Services struct {
 }
 
 type Internal struct {
-	Camera camera.Camera
+	CameraManager camera_manager.CameraManager
 }
 
 func NewRepositories(logger logger.Logger, sqlDb *sql.DB) (*Repositories, error) {
@@ -49,13 +49,13 @@ func NewServices(repos *Repositories, logger logger.Logger) (*Services, error) {
 	}, nil
 }
 
-func NewInternal(cam camera.Camera) *Internal {
+func NewInternal(cm camera_manager.CameraManager) *Internal {
 	return &Internal{
-		Camera: cam,
+		CameraManager: cm,
 	}
 }
 
-func New(logger logger.Logger, sqlDb *sql.DB, cam camera.Camera) (*Modules, error) {
+func New(logger logger.Logger, sqlDb *sql.DB, cm camera_manager.CameraManager) (*Modules, error) {
 	repos, err := NewRepositories(logger, sqlDb)
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func New(logger logger.Logger, sqlDb *sql.DB, cam camera.Camera) (*Modules, erro
 	if err != nil {
 		return nil, err
 	}
-	internal := NewInternal(cam)
+	internal := NewInternal(cm)
 
 	return &Modules{
 		Repositories: repos,

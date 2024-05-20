@@ -35,7 +35,7 @@ func New(ctx context.Context, awsConfig *aws.Config, config *config.Config, logg
 }
 
 func (s *Server) Start() error {
-	s.log.Info("Starting server %s:%d", s.config.Host, s.config.Port)
+	s.log.Info("Starting server %s:%d", s.config.Api.Host, s.config.Api.Port)
 
 	s.gin_server.SetupCors()
 	s.gin_server.SetupMiddlewares()
@@ -52,7 +52,7 @@ func (s *Server) Start() error {
 	}()
 
 	s.server = &http.Server{
-		Addr:    s.config.Host + ":" + strconv.Itoa(s.config.Port),
+		Addr:    s.config.Api.Host + ":" + strconv.Itoa(s.config.Api.Port),
 		Handler: s.gin_server.Gin,
 	}
 

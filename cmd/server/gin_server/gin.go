@@ -54,7 +54,7 @@ func (s *Gin) SetupApi() error {
 
 	//Websocket
 	ginWs := s.Gin.Group("/ws")
-	wsServer := websocket.NewWebSocketServer(s.ctx, s.log, ginWs, s.modules.Internal.Camera)
+	wsServer := websocket.NewWebSocketServer(s.ctx, s.log, ginWs, s.modules)
 	wsServer.Start()
 
 	//Static files
