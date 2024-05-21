@@ -121,6 +121,21 @@ func main() {
 		logger.Info("Starting application")
 		app.runApplication()
 	}()
+
+	go func() { //TODO: Test this
+		ticker := time.NewTicker(60 * time.Second) //TODO: Check if this is the right interval
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := cm.CheckSystemCameras(); err != nil {
+					logger.Error("Error updating camera status %v", err)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 	wg.Wait()
 
 	<-ctx.Done()

@@ -125,10 +125,17 @@ func (cm *cameraManager) checkLinuxCameras() error {
 	}
 
 	for _, device := range devices {
-		if strings.HasPrefix(device.Name(), "video") {
-			cm.logger.Info("Found camera %s", device.Name())
-			deviceID := getDeviceID(device.Name())
-			cm.checkAndStartCamera(deviceID)
+		deviceName := device.Name()
+		if strings.HasPrefix(deviceName, "video") {
+			deviceID := getDeviceID(deviceName)
+			if _, exists := cm.cameras[deviceID]; exists {
+				continue
+			}
+			webCam := camera.NewWebcam(cm.ctx, deviceID, cm.logger)
+			_, err := webCam.Check()
+			if err == nil {
+				cm.checkAndStartCamera(deviceID)
+			}
 		}
 	}
 
@@ -137,13 +144,13 @@ func (cm *cameraManager) checkLinuxCameras() error {
 
 func (cm *cameraManager) checkMacCameras() error {
 	for i := 0; i < DARWIN_MAX_CAMERAS; i++ {
-		cm.logger.Info("Trying to open video device %d", i)
+		if _, exists := cm.cameras[i]; exists {
+			continue
+		}
 		webCam := camera.NewWebcam(cm.ctx, i, cm.logger)
 		_, err := webCam.Check()
 		if err == nil {
 			cm.checkAndStartCamera(i)
-		} else {
-			cm.logger.Info("No camera found at index %d", i)
 		}
 	}
 
