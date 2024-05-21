@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Camera Stream</title>
+    <link
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background-color: #f8f9fa;
+      }
+      .container {
+        margin-top: 50px;
+      }
+      .card {
+        padding: 20px;
+        text-align: center;
+      }
+      #videoStream {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-md-8">
+          <div class="card">
+            <h3 class="card-title">Camera Stream</h3>
+            <img
+              id="videoStream"
+              width="640"
+              height="480"
+              alt="Camera Stream"
+              class="img-fluid mb-3"
+            />
+            <div id="message" class="text-center text-danger"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const videoStream = document.getElementById("videoStream");
+        const messageDiv = document.getElementById("message");
+        const token = localStorage.getItem("authToken");
+
+        if (!token) {
+          messageDiv.textContent = "Unauthorized: No token found";
+
+          setTimeout(() => {
+            window.location.href = "login.html";
+          }, 3000);
+          return;
+        }
+
+        const ws = new WebSocket(
+          `ws://${
+            window.location.host
+          }/api/v1/ws/video?token=${encodeURIComponent(token)}`
+        );
+        ws.binaryType = "arraybuffer";
+
+        ws.onmessage = function (event) {
+          const arrayBuffer = event.data;
+          const blob = new Blob([arrayBuffer], { type: "image/jpeg" });
+          videoStream.src = URL.createObjectURL(blob);
+        };
+        ws.onclose = function (event) {
+          if (event.code === 1006 || event.code === 1011) {
+            localStorage.removeItem("authToken");
+            window.location.href = "login.html";
+          } else {
+            console.log("WebSocket closed: ", event);
+          }
+        };
+        ws.onerror = function (event) {
+          messageDiv.textContent = "WebSocket error: " + event.message;
+        };
+      });
+    </script>
+  </body>
+</html>
