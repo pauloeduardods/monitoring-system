@@ -18,6 +18,7 @@ type Webcam struct {
 	outputChan         chan gocv.Mat
 	cameraCapabilities CameraCapabilities
 	ctx                context.Context
+	//TODO: Add camera name and add name in the capture image
 }
 
 func NewWebcam(ctx context.Context, deviceID int, logger logger.Logger) Camera {
@@ -25,19 +26,13 @@ func NewWebcam(ctx context.Context, deviceID int, logger logger.Logger) Camera {
 }
 
 func (w *Webcam) getCameraCapabilities() (CameraCapabilities, error) {
-	webcam, err := gocv.OpenVideoCapture(w.deviceID)
-	if err != nil {
-		return CameraCapabilities{}, err
-	}
-	defer webcam.Close()
-
-	width := webcam.Get(gocv.VideoCaptureFrameWidth)
-	height := webcam.Get(gocv.VideoCaptureFrameHeight)
+	width := w.webcam.Get(gocv.VideoCaptureFrameWidth)
+	height := w.webcam.Get(gocv.VideoCaptureFrameHeight)
 	if width == 0 || height == 0 {
 		return CameraCapabilities{}, fmt.Errorf("unable to get dimensions for device: %d", w.deviceID)
 	}
 
-	fps := webcam.Get(gocv.VideoCaptureFPS)
+	fps := w.webcam.Get(gocv.VideoCaptureFPS)
 	if fps == 0 {
 		return CameraCapabilities{}, fmt.Errorf("unable to get FPS for device: %d", w.deviceID)
 	}
@@ -56,12 +51,16 @@ func (w *Webcam) Check() (CameraCapabilities, error) {
 		return CameraCapabilities{}, err
 	}
 	defer webcam.Close()
+	w.webcam = webcam
 	return w.getCameraCapabilities()
 }
 
 func (w *Webcam) Start() error {
-	webcam, err := gocv.OpenVideoCapture(w.deviceID)
+	webcam, err := gocv.OpenVideoCapture(int(w.deviceID))
 	if err != nil {
+		// if strings.Contains(err.Error(), "can't open camera") {
+		// 	return fmt.Errorf("unable to open device: %d", w.deviceID)
+		// }
 		return err
 	}
 	w.webcam = webcam

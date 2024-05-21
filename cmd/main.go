@@ -85,23 +85,10 @@ func main() {
 		return
 	}
 
-	if err := cm.UpdateCameraStatus(); err != nil {
+	if err := cm.CheckSystemCameras(); err != nil {
 		logger.Error("Error updating camera status %v", err)
 		return
 	}
-
-	// err = cm.StartCamera(0)
-	// if err != nil {
-	// 	logger.Error("Error starting camera %v", err)
-	// 	return
-	// }
-	// defer cm.StopCamera(0)
-
-	// if err := cam.Start(); err != nil {
-	// 	logger.Error("Error starting camera %v", err)
-	// 	return
-	// }
-	// defer cam.Stop() //Check if this is the right place to put this
 
 	modules, err := modules.New(logger, db, cm)
 	if err != nil {

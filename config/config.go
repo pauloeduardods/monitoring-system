@@ -155,7 +155,7 @@ func insertDefaultConfigs(db *sql.DB) error {
 		return fmt.Errorf("error checking API config table: %v", err)
 	}
 	if count == 0 {
-		_, err := db.Exec("INSERT INTO api_config (host, port) VALUES (?, ?)", "localhost", 3000)
+		_, err := db.Exec("INSERT INTO api_config (host, port) VALUES (?, ?)", "0.0.0.0", 4000)
 		if err != nil {
 			return fmt.Errorf("error inserting default API config: %v", err)
 		}
@@ -167,7 +167,7 @@ func insertDefaultConfigs(db *sql.DB) error {
 	}
 
 	if count == 0 {
-		_, err := db.Exec("INSERT INTO cameras_config (max_camera_count) VALUES (?)", 10)
+		_, err := db.Exec("INSERT INTO cameras_config (max_camera_count) VALUES (?)", 2)
 		if err != nil {
 			return fmt.Errorf("error inserting default cameras config: %v", err)
 		}

@@ -13,7 +13,7 @@ import (
 )
 
 type CameraManager interface {
-	UpdateCameraStatus() error
+	CheckSystemCameras() error
 	ListCameras() []Camera
 	ListRunningCameras() []Camera
 	GetCamera(deviceID int) (Camera, error)
@@ -77,7 +77,6 @@ func (cm *cameraManager) startCameraNoLock(deviceID int) error {
 	case Removed:
 		return errors.New("camera is removed")
 	case Disconnected:
-		return errors.New("camera is disconnected")
 	case Connected:
 	}
 
@@ -90,11 +89,11 @@ func (cm *cameraManager) startCameraNoLock(deviceID int) error {
 	return nil
 }
 
-func (cm *cameraManager) UpdateCameraStatus() error {
+func (cm *cameraManager) CheckSystemCameras() error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	cm.logger.Info("Updating camera status %v", cm.cameraConfig.MaxCameraCount)
+	cm.logger.Info("Checking cameras")
 
 	for i := 0; i < cm.cameraConfig.MaxCameraCount; i++ {
 		var cam Camera

@@ -30,7 +30,7 @@ func NewWebSocketServer(ctx context.Context, logger logger.Logger, gin *gin.Rout
 }
 func (wss *WebSocketServer) Start() {
 	wss.logger.Info("Starting websocket server")
-	cam, err := wss.modules.Internal.CameraManager.GetCamera(1)
+	cam, err := wss.modules.Internal.CameraManager.GetCamera(0)
 	if err != nil {
 		wss.logger.Error("Error getting camera %v", err)
 		return
