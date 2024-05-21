@@ -2,8 +2,8 @@ package server
 
 import (
 	"context"
+	"monitoring-system/cmd/modules"
 	"monitoring-system/cmd/server/gin_server"
-	"monitoring-system/cmd/server/modules"
 	"monitoring-system/config"
 	"monitoring-system/pkg/logger"
 	"monitoring-system/pkg/validator"

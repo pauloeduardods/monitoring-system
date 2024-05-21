@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"monitoring-system/cmd/modules"
 	"monitoring-system/cmd/server"
-	"monitoring-system/cmd/server/modules"
 	"monitoring-system/config"
-	"monitoring-system/internal/domain/camera"
+	"monitoring-system/internal/domain/camera_manager"
 	"monitoring-system/internal/storage"
 	"monitoring-system/pkg/logger"
 	"os"
@@ -24,7 +24,7 @@ type Application struct {
 	storage storage.Storage
 	config  *config.Config
 	ctx     context.Context
-	cam     camera.Camera
+	cm      camera_manager.CameraManager
 	sqlDB   *sql.DB
 	modules *modules.Modules
 }
@@ -35,7 +35,21 @@ func main() {
 		fmt.Printf("Error creating logger %v", err)
 		return
 	}
-	appConfig, err := config.NewConfig()
+
+	db, err := sql.Open("sqlite3", "./monitoring.db")
+	if err != nil {
+		logger.Error("Error opening database %v", err)
+		return
+	}
+	defer db.Close()
+
+	configManager, err := config.NewConfigManager(db)
+	if err != nil {
+		logger.Error("Error creating config manager %v", err)
+		return
+	}
+
+	appConfig, err := configManager.LoadConfig()
 	if err != nil {
 		logger.Error("Error loading configuration %v", err)
 		return
@@ -53,34 +67,43 @@ func main() {
 		cancel()
 	}()
 
-	awsConfig, err := config.NewAWSConfig(ctx, appConfig)
+	awsConfig, err := config.LoadAwsConfig(ctx, appConfig.Aws, logger)
 	if err != nil {
 		logger.Error("Error loading AWS configuration %v", err)
 		return
 	}
 
-	storage, err := storage.NewStorage(logger, awsConfig, appConfig.S3BucketName)
+	storage, err := storage.NewStorage(logger, awsConfig, appConfig.Aws.S3BucketName)
 	if err != nil {
 		logger.Error("Error creating storage %v", err)
 		return
 	}
 
-	db, err := sql.Open("sqlite3", "./monitoring.db")
+	cm, err := camera_manager.NewCameraManager(ctx, logger, db, appConfig.Cameras)
 	if err != nil {
-		logger.Error("Error opening database %v", err)
+		logger.Error("Error creating camera manager %v", err)
 		return
 	}
-	defer db.Close()
 
-	cam := camera.NewWebcam(ctx, 0, logger) //make multiple
-
-	if err := cam.Start(); err != nil {
-		logger.Error("Error starting camera %v", err)
+	if err := cm.UpdateCameraStatus(); err != nil {
+		logger.Error("Error updating camera status %v", err)
 		return
 	}
-	defer cam.Stop() //Check if this is the right place to put this
 
-	modules, err := modules.New(logger, db, cam)
+	// err = cm.StartCamera(0)
+	// if err != nil {
+	// 	logger.Error("Error starting camera %v", err)
+	// 	return
+	// }
+	// defer cm.StopCamera(0)
+
+	// if err := cam.Start(); err != nil {
+	// 	logger.Error("Error starting camera %v", err)
+	// 	return
+	// }
+	// defer cam.Stop() //Check if this is the right place to put this
+
+	modules, err := modules.New(logger, db, cm)
 	if err != nil {
 		logger.Error("Error creating modules %v", err)
 		return
@@ -91,7 +114,7 @@ func main() {
 		storage: storage,
 		config:  appConfig,
 		ctx:     ctx,
-		cam:     cam,
+		cm:      cm,
 		sqlDB:   db,
 		modules: modules,
 	}
@@ -121,7 +144,13 @@ func (a *Application) runApplication() {
 
 	filename := fmt.Sprintf("video_%s.avi", time.Now().Format("20060102_150405"))
 
-	if err := a.cam.RecordVideo(a.ctx, filename); err != nil {
+	cam, err := a.cm.GetCamera(0)
+	if err != nil {
+		a.logger.Error("Error getting camera %v", err)
+		return
+	}
+
+	if err := cam.Camera.RecordVideo(a.ctx, filename); err != nil {
 		a.logger.Error("Error recording video %v", err)
 		return
 	}

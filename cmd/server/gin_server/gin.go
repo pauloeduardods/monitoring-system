@@ -2,10 +2,10 @@ package gin_server
 
 import (
 	"context"
+	"monitoring-system/cmd/modules"
 	"monitoring-system/cmd/server/gin_server/handlers"
 	"monitoring-system/cmd/server/gin_server/middleware"
 	"monitoring-system/cmd/server/gin_server/routes"
-	"monitoring-system/cmd/server/modules"
 	"monitoring-system/cmd/server/websocket"
 	"monitoring-system/pkg/logger"
 	"monitoring-system/pkg/validator"
@@ -51,22 +51,28 @@ func (s *Gin) SetupMiddlewares() {
 }
 
 func (s *Gin) SetupApi() error {
+	//Api Routes
+	s.Gin.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	apiRoutes := s.Gin.Group("/api/v1")
+
+	//Middlewares
+	authMiddleware := middleware.NewAuthMiddleware(s.modules.Services.Auth)
 
 	//Websocket
-	ginWs := s.Gin.Group("/ws")
-	wsServer := websocket.NewWebSocketServer(s.ctx, s.log, ginWs, s.modules)
+	ginWs := apiRoutes.Group("/ws")
+	wsServer := websocket.NewWebSocketServer(s.ctx, s.log, ginWs, s.modules, authMiddleware)
 	wsServer.Start()
 
 	//Static files
-	s.Gin.StaticFS("/static", http.Dir("web/static"))
+	s.Gin.StaticFS("/web", http.Dir("web/static"))
 
 	//Handlers
 	authHandler := handlers.NewAuthHandler(s.modules.Services.Auth, s.validator)
 
-	//Middlewares
-	// authMiddleware := middleware.NewAuthMiddleware(s.modules.Services.Auth)
-
 	//Routes
-	routes.ConfigAuthRoutes(s.Gin, authHandler)
+	routes.ConfigAuthRoutes(apiRoutes, authHandler)
 	return nil
 }

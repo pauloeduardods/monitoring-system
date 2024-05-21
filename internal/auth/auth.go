@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"monitoring-system/pkg/app_error"
 	"monitoring-system/pkg/logger"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -39,12 +41,18 @@ func (s *AuthService) Register(username, password string) error {
 func (s *AuthService) Login(username, password string) (Token, error) {
 	entity, err := s.authRepository.GetByUsername(username)
 
+	errInvalidUsernameOrPassword := app_error.NewApiError(401, "Invalid username or password")
+
 	if err != nil {
-		return Token{}, err
+		return Token{}, errInvalidUsernameOrPassword
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(entity.Password), []byte(password))
 	if err != nil {
+		e := err.Error()
+		if strings.Contains(e, "hashedPassword is not the hash of the given password") {
+			return Token{}, errInvalidUsernameOrPassword
+		}
 		return Token{}, err
 	}
 
