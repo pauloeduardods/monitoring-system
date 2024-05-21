@@ -4,13 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"monitoring-system/config"
+	"fmt"
 	"monitoring-system/internal/domain/camera"
 	"monitoring-system/pkg/logger"
+	"os"
+	"runtime"
+	"strings"
 	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
 )
+
+const DARWIN_MAX_CAMERAS = 20
 
 type CameraManager interface {
 	CheckSystemCameras() error
@@ -40,21 +45,19 @@ type Camera struct {
 }
 
 type cameraManager struct {
-	mu           sync.Mutex
-	cameras      map[int]Camera
-	logger       logger.Logger
-	ctx          context.Context
-	cameraConfig config.CamerasConfig
-	db           *sql.DB
+	mu      sync.Mutex
+	cameras map[int]Camera
+	logger  logger.Logger
+	ctx     context.Context
+	db      *sql.DB
 }
 
-func NewCameraManager(ctx context.Context, logger logger.Logger, db *sql.DB, cameraConfig config.CamerasConfig) (CameraManager, error) {
+func NewCameraManager(ctx context.Context, logger logger.Logger, db *sql.DB) (CameraManager, error) {
 	cm := &cameraManager{
-		cameras:      make(map[int]Camera),
-		logger:       logger,
-		ctx:          ctx,
-		db:           db,
-		cameraConfig: cameraConfig,
+		cameras: make(map[int]Camera),
+		logger:  logger,
+		ctx:     ctx,
+		db:      db,
 	}
 
 	err := cm.loadCamerasFromDB()
@@ -68,7 +71,12 @@ func NewCameraManager(ctx context.Context, logger logger.Logger, db *sql.DB, cam
 func (cm *cameraManager) startCameraNoLock(deviceID int) error {
 	cam, exists := cm.cameras[deviceID]
 	if !exists {
-		return errors.New("camera not found")
+		cam = Camera{
+			Id:     deviceID,
+			Name:   "",
+			Status: Disconnected,
+			Camera: camera.NewWebcam(cm.ctx, deviceID, cm.logger),
+		}
 	}
 
 	switch cam.Status {
@@ -89,54 +97,98 @@ func (cm *cameraManager) startCameraNoLock(deviceID int) error {
 	return nil
 }
 
+func getDeviceID(deviceName string) int {
+	var id int
+	fmt.Sscanf(deviceName, "video%d", &id)
+	return id
+}
+
 func (cm *cameraManager) CheckSystemCameras() error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	cm.logger.Info("Checking cameras")
+	cm.logger.Info("Checking system cameras")
 
-	for i := 0; i < cm.cameraConfig.MaxCameraCount; i++ {
-		var cam Camera
-		if entry, ok := cm.cameras[i]; ok {
-			cam = entry
-			_, err := entry.Camera.Check()
-			if err != nil {
-				cam.Status = Disconnected
-			} else {
-				cam.Status = Connected
-			}
-		} else {
-			var cam Camera
-			webCam := camera.NewWebcam(cm.ctx, i, cm.logger)
-			cam.Camera = webCam
-			cam.Id = i
-			cam.Name = ""
-			_, err := cam.Camera.Check()
-			if err != nil {
-				cam.Status = Disconnected
-			} else {
-				cam.Status = Connected
-			}
+	if runtime.GOOS == "linux" {
+		return cm.checkLinuxCameras()
+	} else if runtime.GOOS == "darwin" {
+		return cm.checkMacCameras()
+	}
+
+	return errors.New("unsupported operating system")
+}
+
+func (cm *cameraManager) checkLinuxCameras() error {
+	devices, err := os.ReadDir("/dev")
+	if err != nil {
+		return err
+	}
+
+	for _, device := range devices {
+		if strings.HasPrefix(device.Name(), "video") {
+			cm.logger.Info("Found camera %s", device.Name())
+			deviceID := getDeviceID(device.Name())
+			cm.checkAndStartCamera(deviceID)
 		}
-		cm.logger.Info("Camera %d status: %s", i, cam.Status)
-		if cam.Status == Connected {
-			err := cm.startCameraNoLock(i)
-			if err != nil {
-				cm.logger.Error("Error starting camera %d: %v\n", i, err)
-			}
-		}
-		cm.cameras[i] = cam
-		cm.saveCameraToDB(cam)
 	}
 
 	return nil
+}
+
+func (cm *cameraManager) checkMacCameras() error {
+	for i := 0; i < DARWIN_MAX_CAMERAS; i++ {
+		cm.logger.Info("Trying to open video device %d", i)
+		webCam := camera.NewWebcam(cm.ctx, i, cm.logger)
+		_, err := webCam.Check()
+		if err == nil {
+			cm.checkAndStartCamera(i)
+		} else {
+			cm.logger.Info("No camera found at index %d", i)
+		}
+	}
+
+	return nil
+}
+
+func (cm *cameraManager) checkAndStartCamera(deviceID int) {
+	var cam Camera
+	if entry, ok := cm.cameras[deviceID]; ok {
+		cam = entry
+		_, err := entry.Camera.Check()
+		if err != nil {
+			cam.Status = Disconnected
+		} else {
+			cam.Status = Connected
+		}
+	} else {
+		webCam := camera.NewWebcam(cm.ctx, deviceID, cm.logger)
+		cam = Camera{
+			Id:     deviceID,
+			Name:   "",
+			Status: Connected,
+			Camera: webCam,
+		}
+		_, err := cam.Camera.Check()
+		if err != nil {
+			cam.Status = Disconnected
+		}
+	}
+	cm.logger.Info("Camera %d status: %s", deviceID, cam.Status)
+	if cam.Status == Connected {
+		err := cm.startCameraNoLock(deviceID)
+		if err != nil {
+			cm.logger.Error("Error starting camera %d: %v\n", deviceID, err)
+		}
+	}
+	cm.cameras[deviceID] = cam
+	cm.saveCameraToDB(cam)
 }
 
 func (cm *cameraManager) ListCameras() []Camera {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	cameras := make([]Camera, 0, cm.cameraConfig.MaxCameraCount)
+	cameras := make([]Camera, 0)
 	for _, cam := range cm.cameras {
 		cameras = append(cameras, cam)
 	}
@@ -166,7 +218,12 @@ func (cm *cameraManager) GetCamera(deviceID int) (Camera, error) {
 	cm.logger.Info("Getting camera %d", deviceID)
 	cam, exists := cm.cameras[deviceID]
 	if !exists {
-		return Camera{}, errors.New("camera not found")
+		cam = Camera{
+			Id:     deviceID,
+			Name:   "",
+			Status: Disconnected,
+			Camera: camera.NewWebcam(cm.ctx, deviceID, cm.logger),
+		}
 	}
 
 	return cam, nil
@@ -178,7 +235,12 @@ func (cm *cameraManager) AddCamera(deviceID int, name string) error {
 
 	cam, exists := cm.cameras[deviceID]
 	if !exists {
-		return errors.New("camera not found")
+		cam = Camera{
+			Id:     deviceID,
+			Name:   "",
+			Status: Disconnected,
+			Camera: camera.NewWebcam(cm.ctx, deviceID, cm.logger),
+		}
 	}
 
 	switch cam.Status {
@@ -201,7 +263,12 @@ func (cm *cameraManager) RemoveCamera(deviceID int) error {
 
 	entry, exists := cm.cameras[deviceID]
 	if !exists {
-		return errors.New("camera not found")
+		entry = Camera{
+			Id:     deviceID,
+			Name:   "",
+			Status: Disconnected,
+			Camera: camera.NewWebcam(cm.ctx, deviceID, cm.logger),
+		}
 	}
 
 	switch entry.Status {
@@ -228,7 +295,12 @@ func (cm *cameraManager) RenameCamera(deviceID int, name string) error {
 
 	cam, exists := cm.cameras[deviceID]
 	if !exists {
-		return errors.New("camera not found")
+		cam = Camera{
+			Id:     deviceID,
+			Name:   "",
+			Status: Disconnected,
+			Camera: camera.NewWebcam(cm.ctx, deviceID, cm.logger),
+		}
 	}
 
 	cam.Name = name

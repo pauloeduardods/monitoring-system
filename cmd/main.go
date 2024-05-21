@@ -79,7 +79,7 @@ func main() {
 		return
 	}
 
-	cm, err := camera_manager.NewCameraManager(ctx, logger, db, appConfig.Cameras)
+	cm, err := camera_manager.NewCameraManager(ctx, logger, db)
 	if err != nil {
 		logger.Error("Error creating camera manager %v", err)
 		return

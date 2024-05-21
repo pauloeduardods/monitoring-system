@@ -30,17 +30,6 @@ func (cm *cameraManager) loadCamerasFromDB() error {
 		cm.cameras[cam.Id] = cam
 	}
 
-	for i := 0; i < cm.cameraConfig.MaxCameraCount; i++ {
-		if _, exists := cm.cameras[i]; !exists {
-			cm.cameras[i] = Camera{
-				Id:     i,
-				Name:   "",
-				Status: Disconnected,
-				Camera: camera.NewWebcam(cm.ctx, i, cm.logger),
-			}
-		}
-	}
-
 	return nil
 }
 

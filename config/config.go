@@ -17,14 +17,9 @@ type ApiConfig struct {
 	Port int
 }
 
-type CamerasConfig struct {
-	MaxCameraCount int
-}
-
 type Config struct {
-	Aws     AwsConfig
-	Api     ApiConfig
-	Cameras CamerasConfig
+	Aws AwsConfig
+	Api ApiConfig
 }
 
 type ConfigManager struct {
@@ -86,15 +81,9 @@ func (cm *ConfigManager) LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
-	camerasConfig, err := cm.loadCamerasConfig()
-	if err != nil {
-		return nil, err
-	}
-
 	return &Config{
-		Aws:     *awsConfig,
-		Api:     *apiConfig,
-		Cameras: *camerasConfig,
+		Aws: *awsConfig,
+		Api: *apiConfig,
 	}, nil
 }
 
@@ -115,16 +104,6 @@ func (cm *ConfigManager) loadApiConfig() (*ApiConfig, error) {
 		return nil, fmt.Errorf("error loading API config: %v", err)
 	}
 	return &ApiConfig{Host: host, Port: port}, nil
-}
-
-func (cm *ConfigManager) loadCamerasConfig() (*CamerasConfig, error) {
-	row := cm.db.QueryRow("SELECT max_camera_count FROM cameras_config LIMIT 1")
-	var maxCameraCount int
-	if err := row.Scan(&maxCameraCount); err != nil {
-		return nil, fmt.Errorf("error loading cameras config: %v", err)
-	}
-
-	return &CamerasConfig{MaxCameraCount: maxCameraCount}, nil
 }
 
 func (cm *ConfigManager) SaveAWSConfig(config *AwsConfig) error {
