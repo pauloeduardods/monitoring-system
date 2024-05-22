@@ -35,7 +35,6 @@ func NewWebSocketServer(ctx context.Context, logger logger.Logger, gin *gin.Rout
 }
 
 func (wss *WebSocketServer) notificationCallback(cam *camera_manager.Camera) {
-	wss.logger.Info("Camera notification %v", cam)
 	switch cam.Status {
 	case camera_manager.Running:
 		wss.cameras[cam.Id] = cam

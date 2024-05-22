@@ -12,32 +12,39 @@ import (
 )
 
 type Webcam struct {
-	deviceID           int
-	webcam             *gocv.VideoCapture
-	logger             logger.Logger
-	outputChan         chan gocv.Mat
-	cameraCapabilities CameraCapabilities
-	ctx                context.Context
+	deviceID   int
+	webcam     *gocv.VideoCapture
+	logger     logger.Logger
+	outputChan chan gocv.Mat
+	details    *CameraDetails
+	statusChan chan Status
+	ctx        context.Context
 	//TODO: Add camera name and add name in the capture image
 }
 
 func NewWebcam(ctx context.Context, deviceID int, logger logger.Logger) Camera {
-	return &Webcam{deviceID: deviceID, logger: logger, ctx: ctx, outputChan: make(chan gocv.Mat)}
+	cameraDetails := &CameraDetails{
+		ID:     deviceID,
+		Name:   fmt.Sprintf("Camera %d", deviceID),
+		Status: Disconnected,
+		Infos:  Infos{},
+	}
+	return &Webcam{deviceID: deviceID, logger: logger, ctx: ctx, outputChan: make(chan gocv.Mat), details: cameraDetails, statusChan: make(chan Status, 1)}
 }
 
-func (w *Webcam) getCameraCapabilities() (CameraCapabilities, error) {
+func (w *Webcam) getInfos() (Infos, error) {
 	width := w.webcam.Get(gocv.VideoCaptureFrameWidth)
 	height := w.webcam.Get(gocv.VideoCaptureFrameHeight)
 	if width == 0 || height == 0 {
-		return CameraCapabilities{}, fmt.Errorf("unable to get dimensions for device: %d", w.deviceID)
+		return Infos{}, fmt.Errorf("unable to get dimensions for device: %d", w.deviceID)
 	}
 
 	fps := w.webcam.Get(gocv.VideoCaptureFPS)
 	if fps == 0 {
-		return CameraCapabilities{}, fmt.Errorf("unable to get FPS for device: %d", w.deviceID)
+		return Infos{}, fmt.Errorf("unable to get FPS for device: %d", w.deviceID)
 	}
 
-	return CameraCapabilities{
+	return Infos{
 		DeviceID: w.deviceID,
 		Width:    int(width),
 		Height:   int(height),
@@ -45,43 +52,48 @@ func (w *Webcam) getCameraCapabilities() (CameraCapabilities, error) {
 	}, nil
 }
 
-func (w *Webcam) Check() (CameraCapabilities, error) {
+func (w *Webcam) Start() error {
+	switch w.details.Status {
+	case Connected:
+		return nil
+	// case Removed:
+	// 	return fmt.Errorf("device %d has been removed", w.deviceID)
+	case Disconnected:
+	default:
+	}
 	webcam, err := gocv.OpenVideoCapture(w.deviceID)
 	if err != nil {
-		return CameraCapabilities{}, err
+		return err
 	}
 	defer webcam.Close()
 	w.webcam = webcam
-	return w.getCameraCapabilities()
-}
-
-func (w *Webcam) Start() error {
-	webcam, err := gocv.OpenVideoCapture(int(w.deviceID))
-	if err != nil {
-		// if strings.Contains(err.Error(), "can't open camera") {
-		// 	return fmt.Errorf("unable to open device: %d", w.deviceID)
-		// }
-		return err
-	}
-	w.webcam = webcam
-
-	capabilities, err := w.getCameraCapabilities()
+	infos, err := w.getInfos()
 	if err != nil {
 		return err
 	}
-	w.cameraCapabilities = capabilities
+	w.details.Infos = infos
+	w.details.Status = Connected
+	w.statusChan <- Connected
 
 	go w.capture()
+
 	return nil
 }
 
-func (w *Webcam) Stop() error {
-	err := w.webcam.Close()
-	return err
+func (w *Webcam) Close() error {
+	w.details.Status = Disconnected
+	w.statusChan <- Disconnected
+	w.logger.Info("Stopping webcam capture")
+	close(w.outputChan)
+	return w.webcam.Close()
 }
 
 func (w *Webcam) capture() {
-	defer w.Stop()
+	defer w.Close()
+
+	maxRetries := 10
+	retries := 0
+
 	for {
 		select {
 		case <-w.ctx.Done():
@@ -92,23 +104,24 @@ func (w *Webcam) capture() {
 
 			ok := w.webcam.Read(&img)
 			if !ok || img.Empty() {
-				w.logger.Warning("Cannot read from device %d\n", w.deviceID)
+				retries++
+				if retries >= maxRetries {
+					w.logger.Warning("Unable to read from device %d\n", w.deviceID)
+					return
+				}
+				time.Sleep(1 * time.Second)
 
-				img = gocv.NewMatWithSize(w.cameraCapabilities.Height, w.cameraCapabilities.Width, gocv.MatTypeCV8UC3)
+				img = gocv.NewMatWithSize(w.details.Infos.Height, w.details.Infos.Width, gocv.MatTypeCV8UC3)
 				img.SetTo(gocv.NewScalar(0, 0, 0, 0))
+			} else {
+				retries = 0
 			}
-			// if img.Empty() {
-			// 	w.logger.Warning("Empty image from device %d\n", w.deviceID)
-
-			// 	img = gocv.NewMatWithSize(w.cameraCapabilities.Height, w.cameraCapabilities.Width, gocv.MatTypeCV8UC3)
-			// 	img.SetTo(gocv.NewScalar(0, 0, 0, 0))
-			// }
 
 			font := gocv.FontHersheyPlain
 			scale := 1.5
 			color := color.RGBA{R: 255, G: 255, B: 255, A: 0}
 			thickness := 2
-			position := image.Point{X: 10, Y: w.cameraCapabilities.Height - 10}
+			position := image.Point{X: 10, Y: w.details.Infos.Height - 10}
 
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
 			gocv.PutText(&img, timestamp, position, font, scale, color, thickness)
@@ -118,20 +131,12 @@ func (w *Webcam) capture() {
 	}
 }
 
-func (w *Webcam) GetFPS() (float64, error) {
-	fps := w.webcam.Get(gocv.VideoCaptureFPS)
-	if fps == 0 {
-		return 0, fmt.Errorf("unable to get FPS for device: %d", w.deviceID)
-	}
-	return fps, nil
-}
-
-func (w *Webcam) SetFPS(fps float64) error {
-	w.webcam.Set(gocv.VideoCaptureFPS, fps)
-	return nil
-}
-
 func (w *Webcam) Capture() ([]byte, error) {
+	switch w.details.Status {
+	case Connected:
+	default:
+		return nil, fmt.Errorf("device %d is not connected", w.deviceID)
+	}
 	select {
 	case <-w.ctx.Done():
 		w.logger.Info("Webcam capture stopped")
@@ -147,16 +152,14 @@ func (w *Webcam) Capture() ([]byte, error) {
 	}
 }
 
-func (c *Webcam) GetCapabilities() CameraCapabilities {
-	return c.cameraCapabilities
-}
-
-func (c *Webcam) Close() {
-	c.webcam.Close()
-}
-
 func (w *Webcam) RecordVideo(ctx context.Context, filename string) error {
-	writer, err := gocv.VideoWriterFile(filename, "MJPG", w.cameraCapabilities.FPS, w.cameraCapabilities.Width, w.cameraCapabilities.Height, true)
+	switch w.details.Status {
+	case Connected:
+	default:
+		return fmt.Errorf("device %d is not connected", w.deviceID)
+	}
+
+	writer, err := gocv.VideoWriterFile(filename, "MJPG", w.details.Infos.FPS, w.details.Infos.Width, w.details.Infos.Height, true)
 	if err != nil {
 		return err
 	}
@@ -171,4 +174,8 @@ func (w *Webcam) RecordVideo(ctx context.Context, filename string) error {
 			writer.Write(img)
 		}
 	}
+}
+
+func (w *Webcam) StatusChan() <-chan Status {
+	return w.statusChan
 }
