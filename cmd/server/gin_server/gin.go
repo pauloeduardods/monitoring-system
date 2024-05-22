@@ -64,7 +64,10 @@ func (s *Gin) SetupApi() error {
 	//Websocket
 	ginWs := apiRoutes.Group("/ws")
 	wsServer := websocket.NewWebSocketServer(s.ctx, s.log, ginWs, s.modules, authMiddleware)
-	wsServer.Start()
+	err := wsServer.Start()
+	if err != nil {
+		return err
+	}
 
 	//Static files
 	s.Gin.StaticFS("/web", http.Dir("web/static"))

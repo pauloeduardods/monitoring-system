@@ -6,7 +6,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-var jwtKey = []byte("my_secret_key")
+var jwtKey = []byte("my_secret_key") //TODO: move to env
 
 type Claims struct {
 	Username string `json:"username"`

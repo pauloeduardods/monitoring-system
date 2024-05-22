@@ -27,7 +27,7 @@ func (cm *cameraManager) loadCamerasFromDB() error {
 		}
 		cam.Status = Status(status)
 		cam.Camera = camera.NewWebcam(cm.ctx, cam.Id, cm.logger)
-		cm.cameras[cam.Id] = cam
+		cm.cameras[cam.Id] = &cam
 		cm.checkAndStartCamera(cam.Id)
 	}
 
