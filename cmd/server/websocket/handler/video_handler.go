@@ -40,13 +40,14 @@ func (wss *videoHandler) streamVideo(ctx context.Context, cam camera.Camera, con
 		select {
 		case <-ctx.Done():
 			return
+		// case <-conn.CloseChan(): // Check if the connection is closed
+		// case <-cam. // Check if the camera is disconnected
 		default:
 			img, err := cam.Capture()
 			if err != nil {
 				wss.logger.Error("Error capturing image: %v", err)
 				continue
 			}
-
 			err = conn.WriteMessage(websocket.BinaryMessage, img)
 			if err != nil {
 				wss.logger.Error("Error writing message: %v", err)

@@ -35,6 +35,7 @@ func NewWebSocketServer(ctx context.Context, logger logger.Logger, gin *gin.Rout
 }
 
 func (wss *WebSocketServer) notificationCallback(cam camera_manager.Camera) {
+	wss.logger.Info("Received notification for camera %d with status %s", cam.Camera.GetDetails().ID, cam.Status)
 	switch cam.Status {
 	case camera_manager.Connected:
 		wss.cameras[cam.Camera.GetDetails().ID] = cam
@@ -69,9 +70,9 @@ func (wss *WebSocketServer) Start() error {
 
 	wss.logger.Info("Added notification callback")
 
-	// authMiddleware := wss.authMiddleware.AuthMiddlewareWS()
+	authMiddleware := wss.authMiddleware.AuthMiddlewareWS()
 
-	// wss.gin.GET("/video/:id", authMiddleware, wss.videoHandler)
+	wss.gin.GET("/video/:id", authMiddleware, wss.videoHandler)
 
 	return nil
 }

@@ -69,7 +69,6 @@ func (w *Webcam) Start() error {
 	case Disconnected:
 	default:
 	}
-
 	webcam, err := gocv.OpenVideoCapture(w.deviceID)
 	if err != nil {
 		return err
@@ -158,6 +157,8 @@ func (w *Webcam) Capture() ([]byte, error) {
 			w.logger.Error("Error encoding image: %v\n", err)
 			return nil, err
 		}
+		defer img.Close()
+		defer buf.Close()
 
 		return buf.GetBytes(), nil
 	}
