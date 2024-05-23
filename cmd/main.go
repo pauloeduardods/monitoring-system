@@ -84,6 +84,18 @@ func main() {
 		return
 	}
 
+	// cam := camera.NewWebcam(ctx, 0, logger)
+	// err = cam.Start()
+	// if err != nil {
+	// 	logger.Error("Error starting camera %v", err)
+	// 	return
+	// }
+	// err = cam.RecordVideo(ctx, "video.avi")
+	// if err != nil {
+	// 	logger.Error("Error recording video %v", err)
+	// 	return
+	// }
+
 	modules, err := modules.New(logger, db, cm)
 	if err != nil {
 		logger.Error("Error creating modules %v", err)

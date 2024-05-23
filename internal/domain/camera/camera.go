@@ -19,11 +19,12 @@ type Camera interface {
 	RecordVideo(ctx context.Context, filename string) error
 	Capture() ([]byte, error)
 	StatusChan() <-chan Status
+	GetDetails() CameraDetails
 }
 
 type CameraDetails struct {
 	ID     int
-	Name   string
+	Name   string //TODO: Save name in the database
 	Status Status
 	Infos  Infos
 }

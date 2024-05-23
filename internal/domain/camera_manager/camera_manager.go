@@ -10,102 +10,163 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"sync"
-	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
-const DARWIN_MAX_CAMERAS = 20
-
-type CameraManager interface {
-	CheckSystemCameras() error
-	AddCamera(deviceID int, name string) error
-	RemoveCamera(deviceID int) error
-	RenameCamera(deviceID int, name string) error
-	AddNotificationCallback(callback func(*Camera)) error
-	Close() error
-}
+const DARWIN_MAX_CAMERAS = 3
 
 type Status string
 
 const (
 	Connected    Status = "connected"
 	Disconnected Status = "disconnected"
-	Running      Status = "running"
 	Removed      Status = "removed"
 )
 
+type CameraManager interface {
+	CheckSystemCameras() error
+	AddNotificationCallback(callback func(Camera)) error
+	Close() error
+}
+
 type Camera struct {
-	Id     int
-	Name   string
 	Status Status
 	Camera camera.Camera
 }
 
+type command struct {
+	action func() error
+	result chan error
+}
+
 type cameraManager struct {
-	mu                    sync.Mutex
 	cameras               map[int]*Camera
 	logger                logger.Logger
 	ctx                   context.Context
+	cancel                context.CancelFunc
+	notificationCallbacks []func(Camera)
 	db                    *sql.DB
-	notificationCallbacks []func(*Camera)
+	commandChan           chan command
 }
 
 func NewCameraManager(ctx context.Context, logger logger.Logger, db *sql.DB) (CameraManager, error) {
+	ctx, cancel := context.WithCancel(ctx)
 	cm := &cameraManager{
 		cameras:               make(map[int]*Camera),
 		logger:                logger,
 		ctx:                   ctx,
+		cancel:                cancel,
 		db:                    db,
-		notificationCallbacks: []func(*Camera){},
+		notificationCallbacks: []func(Camera){},
+		commandChan:           make(chan command),
 	}
+
+	go cm.run()
 
 	return cm, nil
 }
 
-func (cm *cameraManager) AddNotificationCallback(callback func(*Camera)) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
-	cm.notificationCallbacks = append(cm.notificationCallbacks, callback)
-	return nil
+func (cm *cameraManager) run() {
+	for cmd := range cm.commandChan {
+		err := cmd.action()
+		cmd.result <- err
+		close(cmd.result)
+	}
+	cm.logger.Warning("Camera manager command channel closed")
 }
 
-func (cm *cameraManager) notifyStatusChange(cam *Camera) {
+func (cm *cameraManager) execute(action func() error) error {
+	cmd := command{action: action, result: make(chan error)}
+	cm.commandChan <- cmd
+	return <-cmd.result
+}
+
+func (cm *cameraManager) AddNotificationCallback(callback func(Camera)) error {
+	cm.logger.Info("Adding notification callback")
+	return cm.execute(func() error {
+		cm.logger.Info("Adding notification callback")
+		cm.notificationCallbacks = append(cm.notificationCallbacks, callback)
+		return nil
+	})
+}
+
+func (cm *cameraManager) notifyStatusChange(cam Camera) {
 	for _, callback := range cm.notificationCallbacks {
 		callback(cam)
 	}
 }
 
+func (cm *cameraManager) newWebcam(deviceId int) error {
+	// return cm.execute(func() error {
+	if currentCam, exists := cm.cameras[deviceId]; exists {
+		if currentCam.Status == Connected {
+			return nil
+		}
+		if currentCam.Status == Removed {
+			return errors.New("camera is removed")
+		}
+	}
+
+	webcam := camera.NewWebcam(cm.ctx, deviceId, cm.logger)
+	cam := &Camera{
+		Status: Disconnected,
+		Camera: webcam,
+	}
+
+	cm.cameras[deviceId] = cam
+
+	go func(deviceId int) {
+		for status := range cm.cameras[deviceId].Camera.StatusChan() {
+			_ = cm.execute(func() error {
+				cam, exists := cm.cameras[deviceId]
+				if !exists {
+					cam = &Camera{
+						Status: Disconnected,
+						Camera: webcam,
+					}
+					cm.cameras[deviceId] = cam
+				}
+
+				switch status {
+				case camera.Connected:
+					if cam.Status == Connected || cam.Status == Removed {
+						return nil
+					}
+					cam.Status = Connected
+				case camera.Disconnected:
+					if cam.Status == Disconnected || cam.Status == Removed {
+						return nil
+					}
+					cam.Status = Disconnected
+				}
+				cm.notifyStatusChange(*cam)
+				return nil
+			})
+		}
+	}(deviceId)
+	return nil
+	// })
+}
+
 func (cm *cameraManager) startCameraNoLock(deviceID int) error {
 	cam, exists := cm.cameras[deviceID]
 	if !exists {
-		cam = &Camera{
-			Id:     deviceID,
-			Name:   "",
-			Status: Disconnected,
-			Camera: camera.NewWebcam(cm.ctx, deviceID, cm.logger),
+		err := cm.newWebcam(deviceID)
+		if err != nil {
+			return err
 		}
-		cm.cameras[deviceID] = cam
+		cam = cm.cameras[deviceID]
 	}
-
 	switch cam.Status {
-	case Running:
+	case Connected:
 		return nil
 	case Removed:
 		return errors.New("camera is removed")
 	case Disconnected:
-	case Connected:
 	}
-
-	if err := cam.Camera.Start(); err != nil {
-		return err
-	}
-	cam.Status = Running
-	cm.saveCameraToDB(*cam)
-	cm.notifyStatusChange(cam)
-	return nil
+	return cam.Camera.Start()
+	// })
 }
 
 func getDeviceID(deviceName string) int {
@@ -114,218 +175,89 @@ func getDeviceID(deviceName string) int {
 	return id
 }
 
-func (cm *cameraManager) checkSystemCameras() error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
-	cm.logger.Info("Checking system cameras")
-
-	if runtime.GOOS == "linux" {
-		return cm.checkLinuxCameras()
-	} else if runtime.GOOS == "darwin" {
-		return cm.checkMacCameras()
-	}
-
-	return errors.New("unsupported operating system")
-}
-
-func (cm *cameraManager) CheckSystemCameras() error {
-	err := cm.loadCamerasFromDB()
-	if err != nil {
-		return err
-	}
-	err = cm.checkSystemCameras()
-	if err != nil {
-		return err
-	}
-
-	go func() { //TODO: Test this
-		ticker := time.NewTicker(20 * time.Second) //TODO: Check if this is the right interval
-		defer ticker.Stop()
-		for {
-			select {
-			case <-cm.ctx.Done():
-				return
-			case <-ticker.C:
-				if err := cm.CheckSystemCameras(); err != nil {
-					cm.logger.Error("Error updating camera status %v", err)
-				}
+func (cm *cameraManager) checkMacCameras() error {
+	return cm.execute(func() error {
+		for i := 0; i < DARWIN_MAX_CAMERAS; i++ {
+			err := cm.startCameraNoLock(i)
+			if err != nil {
+				continue
 			}
 		}
-	}()
-
-	return nil
+		return nil
+	})
 }
 
 func (cm *cameraManager) checkLinuxCameras() error {
-	devices, err := os.ReadDir("/dev")
+	return cm.execute(func() error {
+		devices, err := os.ReadDir("/dev")
+		if err != nil {
+			return err
+		}
+
+		for _, device := range devices {
+			deviceName := device.Name()
+			if strings.HasPrefix(deviceName, "video") {
+				deviceID := getDeviceID(deviceName)
+				err := cm.startCameraNoLock(deviceID)
+				if err != nil {
+					cm.logger.Error("Error checking camera %d: %v", deviceID, err)
+					continue
+				}
+			}
+		}
+		return nil
+	})
+}
+
+func (cm *cameraManager) checkSystemCameras() error {
+	cm.logger.Info("Checking system cameras")
+
+	switch runtime.GOOS {
+	case "linux":
+		return cm.checkLinuxCameras()
+	case "darwin":
+		return cm.checkMacCameras()
+	default:
+		return errors.New("unsupported operating system")
+	}
+}
+
+func (cm *cameraManager) CheckSystemCameras() error {
+	err := cm.checkSystemCameras()
 	if err != nil {
 		return err
 	}
 
-	for _, device := range devices {
-		deviceName := device.Name()
-		if strings.HasPrefix(deviceName, "video") {
-			deviceID := getDeviceID(deviceName)
-			if _, exists := cm.cameras[deviceID]; exists {
-				continue
-			}
-			webCam := camera.NewWebcam(cm.ctx, deviceID, cm.logger)
-			_, err := webCam.Check()
-			if err == nil {
-				cm.checkAndStartCamera(deviceID)
-			}
-		}
-	}
+	// go func() {
+	// 	ticker := time.NewTicker(20 * time.Second)
+	// 	defer ticker.Stop()
+	// 	for {
+	// 		select {
+	// 		case <-cm.ctx.Done():
+	// 			return
+	// 		case <-ticker.C:
+	// 			if err := cm.CheckSystemCameras(); err != nil {
+	// 				cm.logger.Error("Error updating camera status %v", err)
+	// 			}
+	// 		}
+	// 	}
+	// }()
 
 	return nil
-}
-
-func (cm *cameraManager) checkMacCameras() error {
-	for i := 0; i < DARWIN_MAX_CAMERAS; i++ {
-		if _, exists := cm.cameras[i]; exists {
-			continue
-		}
-		webCam := camera.NewWebcam(cm.ctx, i, cm.logger)
-		_, err := webCam.Check()
-		if err == nil {
-			cm.checkAndStartCamera(i)
-		}
-	}
-
-	return nil
-}
-
-func (cm *cameraManager) checkAndStartCamera(deviceID int) {
-	var cam *Camera
-	if entry, ok := cm.cameras[deviceID]; ok {
-		cam = entry
-		_, err := entry.Camera.Check()
-		if err != nil {
-			cam.Status = Disconnected
-		} else {
-			cam.Status = Connected
-		}
-	} else {
-		webCam := camera.NewWebcam(cm.ctx, deviceID, cm.logger)
-		cam = &Camera{
-			Id:     deviceID,
-			Name:   "",
-			Status: Connected,
-			Camera: webCam,
-		}
-		_, err := cam.Camera.Check()
-		if err != nil {
-			cam.Status = Disconnected
-		}
-		cm.cameras[deviceID] = cam
-	}
-	cm.logger.Info("Camera %d status: %s", deviceID, cam.Status)
-	if cam.Status == Connected {
-		err := cm.startCameraNoLock(deviceID)
-		if err != nil {
-			cm.logger.Error("Error starting camera %d: %v\n", deviceID, err)
-		}
-	}
-	cm.saveCameraToDB(*cam)
-	cm.notifyStatusChange(cam)
-}
-
-func (cm *cameraManager) AddCamera(deviceID int, name string) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
-	cam, exists := cm.cameras[deviceID]
-	if !exists {
-		cam = &Camera{
-			Id:     deviceID,
-			Name:   "",
-			Status: Disconnected,
-			Camera: camera.NewWebcam(cm.ctx, deviceID, cm.logger),
-		}
-		cm.cameras[deviceID] = cam
-	}
-
-	switch cam.Status {
-	case Running:
-		return errors.New("camera is running")
-	case Disconnected:
-		return errors.New("camera is disconnected")
-	case Connected:
-	case Removed:
-	}
-	cam.Name = name
-	cam.Status = Connected
-	cm.notifyStatusChange(cam)
-	return cm.saveCameraToDB(*cam)
-}
-
-func (cm *cameraManager) RemoveCamera(deviceID int) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
-	entry, exists := cm.cameras[deviceID]
-	if !exists {
-		entry = &Camera{
-			Id:     deviceID,
-			Name:   "",
-			Status: Disconnected,
-			Camera: camera.NewWebcam(cm.ctx, deviceID, cm.logger),
-		}
-		cm.cameras[deviceID] = entry
-	}
-
-	switch entry.Status {
-	case Disconnected:
-		return errors.New("camera is disconnected")
-	case Removed:
-		return errors.New("camera is already removed")
-	case Connected:
-	case Running:
-	}
-
-	err := entry.Camera.Stop()
-	if err != nil {
-		return err
-	}
-
-	entry.Status = Removed
-	cm.notifyStatusChange(entry)
-	return cm.saveCameraToDB(*entry)
-}
-
-func (cm *cameraManager) RenameCamera(deviceID int, name string) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
-	cam, exists := cm.cameras[deviceID]
-	if !exists {
-		cam = &Camera{
-			Id:     deviceID,
-			Name:   "",
-			Status: Disconnected,
-			Camera: camera.NewWebcam(cm.ctx, deviceID, cm.logger),
-		}
-		cm.cameras[deviceID] = cam
-	}
-
-	cam.Name = name
-	cm.notifyStatusChange(cam)
-	return cm.saveCameraToDB(*cam)
 }
 
 func (cm *cameraManager) Close() error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
-	for _, cam := range cm.cameras {
-		if cam.Status == Running {
-			err := cam.Camera.Stop()
-			if err != nil {
-				cm.logger.Error("Error stopping camera %d: %v\n", cam.Id, err)
+	return cm.execute(func() error {
+		for i, cam := range cm.cameras {
+			if cam.Status == Connected {
+				err := cam.Camera.Close()
+				if err != nil {
+					cm.logger.Error("Error stopping camera %d: %v\n", i, err)
+				}
 			}
 		}
-	}
-
-	return nil
+		cm.cancel()
+		close(cm.commandChan)
+		return nil
+	})
 }

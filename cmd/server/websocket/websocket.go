@@ -20,7 +20,7 @@ type WebSocketServer struct {
 	ctx            context.Context
 	modules        *modules.Modules
 	authMiddleware middleware.AuthMiddleware
-	cameras        map[int]*camera_manager.Camera
+	cameras        map[int]camera_manager.Camera
 }
 
 func NewWebSocketServer(ctx context.Context, logger logger.Logger, gin *gin.RouterGroup, mod *modules.Modules, authMiddleware middleware.AuthMiddleware) *WebSocketServer {
@@ -30,16 +30,16 @@ func NewWebSocketServer(ctx context.Context, logger logger.Logger, gin *gin.Rout
 		ctx:            ctx,
 		modules:        mod,
 		authMiddleware: authMiddleware,
-		cameras:        make(map[int]*camera_manager.Camera),
+		cameras:        make(map[int]camera_manager.Camera),
 	}
 }
 
-func (wss *WebSocketServer) notificationCallback(cam *camera_manager.Camera) {
+func (wss *WebSocketServer) notificationCallback(cam camera_manager.Camera) {
 	switch cam.Status {
-	case camera_manager.Running:
-		wss.cameras[cam.Id] = cam
+	case camera_manager.Connected:
+		wss.cameras[cam.Camera.GetDetails().ID] = cam
 	default:
-		delete(wss.cameras, cam.Id)
+		delete(wss.cameras, cam.Camera.GetDetails().ID)
 	}
 }
 
@@ -67,9 +67,11 @@ func (wss *WebSocketServer) Start() error {
 		return err
 	}
 
-	authMiddleware := wss.authMiddleware.AuthMiddlewareWS()
+	wss.logger.Info("Added notification callback")
 
-	wss.gin.GET("/video/:id", authMiddleware, wss.videoHandler)
+	// authMiddleware := wss.authMiddleware.AuthMiddlewareWS()
+
+	// wss.gin.GET("/video/:id", authMiddleware, wss.videoHandler)
 
 	return nil
 }
