@@ -19,7 +19,7 @@
         padding: 20px;
         text-align: center;
       }
-      #videoStream {
+      .videoStream {
         border: 1px solid #ddd;
         border-radius: 4px;
       }
@@ -30,14 +30,25 @@
       <div class="row justify-content-center">
         <div class="col-md-8">
           <div class="card">
-            <h3 class="card-title">Camera Stream</h3>
-            <img
-              id="videoStream"
-              width="640"
-              height="480"
-              alt="Camera Stream"
-              class="img-fluid mb-3"
-            />
+            <h3 class="card-title">Camera Streams</h3>
+            <div class="mb-3">
+              <img
+                id="videoStream0"
+                width="640"
+                height="480"
+                alt="Camera Stream 0"
+                class="img-fluid videoStream mb-3"
+              />
+            </div>
+            <div class="mb-3">
+              <img
+                id="videoStream1"
+                width="640"
+                height="480"
+                alt="Camera Stream 1"
+                class="img-fluid videoStream mb-3"
+              />
+            </div>
             <div id="message" class="text-center text-danger"></div>
           </div>
         </div>
@@ -48,7 +59,10 @@
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
-        const videoStream = document.getElementById("videoStream");
+        const videoStreams = [
+          document.getElementById("videoStream0"),
+          document.getElementById("videoStream1"),
+        ];
         const messageDiv = document.getElementById("message");
         const token = localStorage.getItem("authToken");
 
@@ -61,29 +75,35 @@
           return;
         }
 
-        const ws = new WebSocket(
-          `ws://${
-            window.location.host
-          }/api/v1/ws/video?token=${encodeURIComponent(token)}`
-        );
-        ws.binaryType = "arraybuffer";
+        const connectWebSocket = (cameraIndex) => {
+          const ws = new WebSocket(
+            `ws://${
+              window.location.host
+            }/api/v1/ws/video/${cameraIndex}?token=${encodeURIComponent(token)}`
+          );
+          ws.binaryType = "arraybuffer";
 
-        ws.onmessage = function (event) {
-          const arrayBuffer = event.data;
-          const blob = new Blob([arrayBuffer], { type: "image/jpeg" });
-          videoStream.src = URL.createObjectURL(blob);
+          ws.onmessage = function (event) {
+            const arrayBuffer = event.data;
+            const blob = new Blob([arrayBuffer], { type: "image/jpeg" });
+            videoStreams[cameraIndex].src = URL.createObjectURL(blob);
+          };
+          ws.onclose = function (event) {
+            console.log(event);
+            // if (event.code === 1006) {
+            //   localStorage.removeItem("authToken");
+            //   window.location.href = "login.html";
+            // } else {
+            console.log(`WebSocket for camera ${cameraIndex} closed: `, event);
+            // }
+          };
+          ws.onerror = function (event) {
+            messageDiv.textContent = `WebSocket error for camera ${cameraIndex}: ${event.message}`;
+          };
         };
-        ws.onclose = function (event) {
-          if (event.code === 1006 || event.code === 1011) {
-            localStorage.removeItem("authToken");
-            window.location.href = "login.html";
-          } else {
-            console.log("WebSocket closed: ", event);
-          }
-        };
-        ws.onerror = function (event) {
-          messageDiv.textContent = "WebSocket error: " + event.message;
-        };
+
+        connectWebSocket(0);
+        connectWebSocket(1);
       });
     </script>
   </body>
