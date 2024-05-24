@@ -16,23 +16,11 @@ import (
 
 const DARWIN_MAX_CAMERAS = 3
 
-type Status string
-
-const (
-	Connected    Status = "connected"
-	Disconnected Status = "disconnected"
-	Removed      Status = "removed"
-)
-
 type CameraManager interface {
 	CheckSystemCameras() error
-	AddNotificationCallback(callback func(Camera)) error
+	GetCameras() map[int]camera.Camera
+	// AddNotificationCallback(callback func(camera.Camera)) error
 	Close() error
-}
-
-type Camera struct {
-	Status Status
-	Camera camera.Camera
 }
 
 type command struct {
@@ -41,25 +29,23 @@ type command struct {
 }
 
 type cameraManager struct {
-	cameras               map[int]*Camera
-	logger                logger.Logger
-	ctx                   context.Context
-	cancel                context.CancelFunc
-	notificationCallbacks []func(Camera)
-	db                    *sql.DB
-	commandChan           chan command
+	cameras     map[int]camera.Camera
+	logger      logger.Logger
+	ctx         context.Context
+	cancel      context.CancelFunc
+	db          *sql.DB
+	commandChan chan command
 }
 
 func NewCameraManager(ctx context.Context, logger logger.Logger, db *sql.DB) (CameraManager, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	cm := &cameraManager{
-		cameras:               make(map[int]*Camera),
-		logger:                logger,
-		ctx:                   ctx,
-		cancel:                cancel,
-		db:                    db,
-		notificationCallbacks: []func(Camera){},
-		commandChan:           make(chan command),
+		cameras:     make(map[int]camera.Camera),
+		logger:      logger,
+		ctx:         ctx,
+		cancel:      cancel,
+		db:          db,
+		commandChan: make(chan command),
 	}
 
 	go cm.run()
@@ -82,91 +68,34 @@ func (cm *cameraManager) execute(action func() error) error {
 	return <-cmd.result
 }
 
-func (cm *cameraManager) AddNotificationCallback(callback func(Camera)) error {
-	cm.logger.Info("Adding notification callback")
-	return cm.execute(func() error {
-		cm.logger.Info("Adding notification callback")
-		cm.notificationCallbacks = append(cm.notificationCallbacks, callback)
-		return nil
-	})
-}
-
-func (cm *cameraManager) notifyStatusChange(cam Camera) {
-	for _, callback := range cm.notificationCallbacks {
-		callback(cam)
-	}
-}
-
 func (cm *cameraManager) newWebcam(deviceId int) error {
 	// return cm.execute(func() error {
-	if currentCam, exists := cm.cameras[deviceId]; exists {
-		if currentCam.Status == Connected {
-			return nil
-		}
-		if currentCam.Status == Removed {
-			return errors.New("camera is removed")
-		}
+	if _, exists := cm.cameras[deviceId]; exists {
+		return errors.New("camera already exists")
 	}
 
 	webcam := camera.NewWebcam(cm.ctx, deviceId, cm.logger)
-	cam := &Camera{
-		Status: Disconnected,
-		Camera: webcam,
+
+	err := webcam.Start()
+	if err != nil {
+		return err
 	}
 
-	cm.cameras[deviceId] = cam
+	cm.cameras[deviceId] = webcam
 
 	go func(deviceId int) {
-		for status := range cm.cameras[deviceId].Camera.StatusChan() {
-			_ = cm.execute(func() error {
-				cam, exists := cm.cameras[deviceId]
-				if !exists {
-					cam = &Camera{
-						Status: Disconnected,
-						Camera: webcam,
-					}
-					cm.cameras[deviceId] = cam
-				}
-
-				switch status {
-				case camera.Connected:
-					if cam.Status == Connected || cam.Status == Removed {
-						return nil
-					}
-					cam.Status = Connected
-				case camera.Disconnected:
-					if cam.Status == Disconnected || cam.Status == Removed {
-						return nil
-					}
-					cam.Status = Disconnected
-				}
-				cm.notifyStatusChange(*cam)
+		select {
+		case <-cm.ctx.Done():
+		case <-webcam.Done():
+			cm.execute(func() error {
+				cm.logger.Info("Camera %d disconnected", deviceId)
+				delete(cm.cameras, deviceId)
 				return nil
 			})
 		}
 	}(deviceId)
-	return nil
-	// })
-}
 
-func (cm *cameraManager) startCameraNoLock(deviceID int) error {
-	cam, exists := cm.cameras[deviceID]
-	if !exists {
-		err := cm.newWebcam(deviceID)
-		if err != nil {
-			return err
-		}
-		cam = cm.cameras[deviceID]
-	}
-	switch cam.Status {
-	case Connected:
-		return nil
-	case Removed:
-		return errors.New("camera is removed")
-	case Disconnected:
-	}
-	return cam.Camera.Start()
-	// })
+	return nil
 }
 
 func getDeviceID(deviceName string) int {
@@ -178,10 +107,15 @@ func getDeviceID(deviceName string) int {
 func (cm *cameraManager) checkMacCameras() error {
 	return cm.execute(func() error {
 		for i := 0; i < DARWIN_MAX_CAMERAS; i++ {
-			err := cm.startCameraNoLock(i)
-			if err != nil {
+			if _, exists := cm.cameras[i]; exists {
 				continue
 			}
+			err := cm.newWebcam(i)
+			if err != nil {
+				cm.logger.Error("Error checking camera %d: %v", i, err)
+				continue
+			}
+
 		}
 		return nil
 	})
@@ -198,7 +132,10 @@ func (cm *cameraManager) checkLinuxCameras() error {
 			deviceName := device.Name()
 			if strings.HasPrefix(deviceName, "video") {
 				deviceID := getDeviceID(deviceName)
-				err := cm.startCameraNoLock(deviceID)
+				if _, exists := cm.cameras[deviceID]; exists {
+					continue
+				}
+				err := cm.newWebcam(deviceID)
 				if err != nil {
 					cm.logger.Error("Error checking camera %d: %v", deviceID, err)
 					continue
@@ -228,7 +165,7 @@ func (cm *cameraManager) CheckSystemCameras() error {
 		return err
 	}
 
-	// go func() {
+	// go func() { //TODO: Fix camera reconnection
 	// 	ticker := time.NewTicker(20 * time.Second)
 	// 	defer ticker.Stop()
 	// 	for {
@@ -236,7 +173,7 @@ func (cm *cameraManager) CheckSystemCameras() error {
 	// 		case <-cm.ctx.Done():
 	// 			return
 	// 		case <-ticker.C:
-	// 			if err := cm.CheckSystemCameras(); err != nil {
+	// 			if err := cm.checkSystemCameras(); err != nil {
 	// 				cm.logger.Error("Error updating camera status %v", err)
 	// 			}
 	// 		}
@@ -249,15 +186,17 @@ func (cm *cameraManager) CheckSystemCameras() error {
 func (cm *cameraManager) Close() error {
 	return cm.execute(func() error {
 		for i, cam := range cm.cameras {
-			if cam.Status == Connected {
-				err := cam.Camera.Close()
-				if err != nil {
-					cm.logger.Error("Error stopping camera %d: %v\n", i, err)
-				}
+			err := cam.Close()
+			if err != nil {
+				cm.logger.Error("Error stopping camera %d: %v\n", i, err)
 			}
 		}
 		cm.cancel()
 		close(cm.commandChan)
 		return nil
 	})
+}
+
+func (cm *cameraManager) GetCameras() map[int]camera.Camera {
+	return cm.cameras
 }

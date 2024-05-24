@@ -39,9 +39,8 @@ func (wss *videoHandler) streamVideo(ctx context.Context, cam camera.Camera, con
 	for {
 		select {
 		case <-ctx.Done():
+		case <-cam.Done():
 			return
-		// case <-conn.CloseChan(): // Check if the connection is closed
-		// case <-cam. // Check if the camera is disconnected
 		default:
 			img, err := cam.Capture()
 			if err != nil {

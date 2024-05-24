@@ -17,17 +17,16 @@ type Webcam struct {
 	logger     logger.Logger
 	outputChan chan gocv.Mat
 	details    *CameraDetails
-	statusChan chan Status
 	ctx        context.Context
 	cancel     context.CancelFunc
+	done       chan struct{}
 }
 
 func NewWebcam(ctx context.Context, deviceID int, logger logger.Logger) Camera {
 	cameraDetails := &CameraDetails{
-		ID:     deviceID,
-		Name:   fmt.Sprintf("Camera %d", deviceID),
-		Status: Disconnected,
-		Infos:  Infos{},
+		ID:    deviceID,
+		Name:  fmt.Sprintf("Camera %d", deviceID),
+		Infos: Infos{},
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	return &Webcam{
@@ -37,7 +36,7 @@ func NewWebcam(ctx context.Context, deviceID int, logger logger.Logger) Camera {
 		cancel:     cancel,
 		outputChan: make(chan gocv.Mat),
 		details:    cameraDetails,
-		statusChan: make(chan Status, 1),
+		done:       make(chan struct{}),
 	}
 }
 
@@ -63,12 +62,6 @@ func (w *Webcam) getInfos() (Infos, error) {
 
 func (w *Webcam) Start() error {
 	w.logger.Info("Starting webcam", w.deviceID)
-	switch w.details.Status {
-	case Connected:
-		return nil
-	case Disconnected:
-	default:
-	}
 	webcam, err := gocv.OpenVideoCapture(w.deviceID)
 	if err != nil {
 		return err
@@ -79,36 +72,33 @@ func (w *Webcam) Start() error {
 		return err
 	}
 	w.details.Infos = infos
-	w.details.Status = Connected
-	w.statusChan <- Connected
 
 	go w.capture()
+
+	w.logger.Info("Webcam started", w.deviceID)
 
 	return nil
 }
 
 func (w *Webcam) Close() error {
-	w.logger.Info("Closing webcam", w.deviceID)
+	defer close(w.outputChan)
+	w.logger.Warning("Closing webcam", w.deviceID)
 	w.cancel()
-	w.details.Status = Disconnected
-	w.statusChan <- Disconnected
-	close(w.outputChan)
-	if w.webcam != nil {
-		return w.webcam.Close()
-	}
-	return nil
+	close(w.done)
+	return w.webcam.Close()
 }
 
 func (w *Webcam) capture() {
 	defer w.Close()
 
-	maxRetries := 10
+	maxRetries := 5
 	retries := 0
 
 	for {
 		select {
+		case <-w.done:
 		case <-w.ctx.Done():
-			w.logger.Info("Webcam capture stopped")
+			w.logger.Warning("Webcam capture stopped")
 			return
 		default:
 			img := gocv.NewMat()
@@ -137,19 +127,23 @@ func (w *Webcam) capture() {
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
 			gocv.PutText(&img, timestamp, position, font, scale, color, thickness)
 
+			// TODO: Check if need to check for done or ctx.Done
 			select {
+			case <-w.done:
 			case <-w.ctx.Done():
 				return
 			case w.outputChan <- img:
 			}
+			// w.outputChan <- img
 		}
 	}
 }
 
 func (w *Webcam) Capture() ([]byte, error) {
 	select {
+	case <-w.done:
 	case <-w.ctx.Done():
-		w.logger.Info("Webcam capture stopped")
+		w.logger.Info("Webcam capture stopped", w.deviceID)
 		return nil, nil
 	case img := <-w.outputChan:
 		buf, err := gocv.IMEncode(gocv.JPEGFileExt, img)
@@ -162,15 +156,10 @@ func (w *Webcam) Capture() ([]byte, error) {
 
 		return buf.GetBytes(), nil
 	}
+	return nil, nil
 }
 
 func (w *Webcam) RecordVideo(ctx context.Context, filename string) error {
-	switch w.details.Status {
-	case Connected:
-	default:
-		return fmt.Errorf("device %d is not connected", w.deviceID)
-	}
-
 	writer, err := gocv.VideoWriterFile(filename, "MJPG", w.details.Infos.FPS, w.details.Infos.Width, w.details.Infos.Height, true)
 	if err != nil {
 		return err
@@ -179,8 +168,8 @@ func (w *Webcam) RecordVideo(ctx context.Context, filename string) error {
 
 	for {
 		select {
+		case <-w.done:
 		case <-ctx.Done():
-			return nil
 		case <-w.ctx.Done():
 			return nil
 		case img := <-w.outputChan:
@@ -189,10 +178,10 @@ func (w *Webcam) RecordVideo(ctx context.Context, filename string) error {
 	}
 }
 
-func (w *Webcam) StatusChan() <-chan Status {
-	return w.statusChan
-}
-
 func (w *Webcam) GetDetails() CameraDetails {
 	return *w.details
+}
+
+func (w *Webcam) Done() <-chan struct{} {
+	return w.done
 }

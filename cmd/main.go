@@ -8,7 +8,6 @@ import (
 	"monitoring-system/cmd/server"
 	"monitoring-system/config"
 	"monitoring-system/internal/domain/camera_manager"
-	"monitoring-system/internal/storage"
 	"monitoring-system/pkg/logger"
 	"os"
 	"os/signal"
@@ -18,15 +17,15 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-type Application struct {
-	logger  logger.Logger
-	storage storage.Storage
-	config  *config.Config
-	ctx     context.Context
-	cm      camera_manager.CameraManager
-	sqlDB   *sql.DB
-	modules *modules.Modules
-}
+// type Application struct {
+// 	logger  logger.Logger
+// 	storage storage.Storage
+// 	config  *config.Config
+// 	ctx     context.Context
+// 	cm      camera_manager.CameraManager
+// 	sqlDB   *sql.DB
+// 	modules *modules.Modules
+// }
 
 func main() {
 	logger, err := logger.NewLogger("development")
