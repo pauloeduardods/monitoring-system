@@ -2,7 +2,7 @@ package gin_server
 
 import (
 	"context"
-	"monitoring-system/cmd/modules"
+	"monitoring-system/cmd/factory"
 	"monitoring-system/cmd/server/gin_server/handlers"
 	"monitoring-system/cmd/server/gin_server/middleware"
 	"monitoring-system/cmd/server/gin_server/routes"
@@ -19,17 +19,17 @@ type Gin struct {
 	Gin       *gin.Engine
 	validator validator.Validator
 	ctx       context.Context
-	modules   *modules.Modules
+	factory   *factory.Factory
 }
 
-func New(ctx context.Context, logger logger.Logger, modules *modules.Modules, validator validator.Validator) *Gin {
+func New(ctx context.Context, logger logger.Logger, factory *factory.Factory, validator validator.Validator) *Gin {
 	gin := gin.Default()
 	return &Gin{
 		log:       logger,
 		Gin:       gin,
 		validator: validator,
 		ctx:       ctx,
-		modules:   modules,
+		factory:   factory,
 	}
 }
 
@@ -59,11 +59,11 @@ func (s *Gin) SetupApi() error {
 	apiRoutes := s.Gin.Group("/api/v1")
 
 	//Middlewares
-	authMiddleware := middleware.NewAuthMiddleware(s.modules.Services.Auth)
+	authMiddleware := middleware.NewAuthMiddleware(s.factory.Services.Auth)
 
 	//Websocket
 	ginWs := apiRoutes.Group("/ws")
-	wsServer := websocket.NewWebSocketServer(s.ctx, s.log, ginWs, s.modules, authMiddleware)
+	wsServer := websocket.NewWebSocketServer(s.ctx, s.log, ginWs, s.factory, authMiddleware)
 	err := wsServer.Start()
 	if err != nil {
 		return err
@@ -73,7 +73,7 @@ func (s *Gin) SetupApi() error {
 	s.Gin.StaticFS("/web", http.Dir("web/static"))
 
 	//Handlers
-	authHandler := handlers.NewAuthHandler(s.modules.Services.Auth, s.validator)
+	authHandler := handlers.NewAuthHandler(s.factory.Services.Auth, s.validator)
 
 	//Routes
 	routes.ConfigAuthRoutes(apiRoutes, authHandler)

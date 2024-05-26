@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"monitoring-system/cmd/modules"
+	"monitoring-system/cmd/factory"
 	"monitoring-system/cmd/server/gin_server"
 	"monitoring-system/config"
 	"monitoring-system/pkg/logger"
@@ -22,8 +22,8 @@ type Server struct {
 	ctx        context.Context
 }
 
-func New(ctx context.Context, awsConfig *aws.Config, config *config.Config, logger logger.Logger, module *modules.Modules) *Server {
-	gin := gin_server.New(ctx, logger, module, validator.NewValidatorImpl())
+func New(ctx context.Context, awsConfig *aws.Config, config *config.Config, logger logger.Logger, factory *factory.Factory) *Server {
+	gin := gin_server.New(ctx, logger, factory, validator.NewValidatorImpl())
 
 	return &Server{
 		config:     config,

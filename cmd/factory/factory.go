@@ -1,4 +1,4 @@
-package modules
+package factory
 
 import (
 	"database/sql"
@@ -7,7 +7,7 @@ import (
 	"monitoring-system/pkg/logger"
 )
 
-type Modules struct {
+type Factory struct {
 	Repositories *Repositories
 	Services     *Services
 	Internal     *Internal
@@ -55,7 +55,7 @@ func NewInternal(cm camera_manager.CameraManager) *Internal {
 	}
 }
 
-func New(logger logger.Logger, sqlDb *sql.DB, cm camera_manager.CameraManager) (*Modules, error) {
+func New(logger logger.Logger, sqlDb *sql.DB, cm camera_manager.CameraManager) (*Factory, error) {
 	repos, err := NewRepositories(logger, sqlDb)
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func New(logger logger.Logger, sqlDb *sql.DB, cm camera_manager.CameraManager) (
 	}
 	internal := NewInternal(cm)
 
-	return &Modules{
+	return &Factory{
 		Repositories: repos,
 		Services:     services,
 		Internal:     internal,

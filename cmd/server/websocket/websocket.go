@@ -2,7 +2,7 @@ package websocket
 
 import (
 	"context"
-	"monitoring-system/cmd/modules"
+	"monitoring-system/cmd/factory"
 	"monitoring-system/cmd/server/gin_server/middleware"
 	"monitoring-system/cmd/server/websocket/handler"
 	"monitoring-system/pkg/app_error"
@@ -17,16 +17,16 @@ type WebSocketServer struct {
 	logger         logger.Logger
 	gin            *gin.RouterGroup
 	ctx            context.Context
-	modules        *modules.Modules
+	factory        *factory.Factory
 	authMiddleware middleware.AuthMiddleware
 }
 
-func NewWebSocketServer(ctx context.Context, logger logger.Logger, gin *gin.RouterGroup, mod *modules.Modules, authMiddleware middleware.AuthMiddleware) *WebSocketServer {
+func NewWebSocketServer(ctx context.Context, logger logger.Logger, gin *gin.RouterGroup, fac *factory.Factory, authMiddleware middleware.AuthMiddleware) *WebSocketServer {
 	return &WebSocketServer{
 		logger:         logger,
 		gin:            gin,
 		ctx:            ctx,
-		modules:        mod,
+		factory:        fac,
 		authMiddleware: authMiddleware,
 	}
 }
@@ -37,7 +37,7 @@ func (wss *WebSocketServer) videoHandler(c *gin.Context) {
 		c.Error(app_error.NewApiError(http.StatusBadRequest, "Invalid camera id"))
 		return
 	}
-	cam, ok := wss.modules.Internal.CameraManager.GetCameras()[id]
+	cam, ok := wss.factory.Internal.CameraManager.GetCameras()[id]
 	if !ok {
 		c.Error(app_error.NewApiError(http.StatusNotFound, "Camera not found"))
 		return

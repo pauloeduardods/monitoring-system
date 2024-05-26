@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"monitoring-system/cmd/modules"
+	"monitoring-system/cmd/factory"
 	"monitoring-system/cmd/server"
 	"monitoring-system/config"
 	"monitoring-system/internal/domain/camera_manager"
@@ -89,9 +89,9 @@ func main() {
 	// 	return
 	// }
 
-	modules, err := modules.New(logger, db, cm)
+	factory, err := factory.New(logger, db, cm)
 	if err != nil {
-		logger.Error("Error creating modules %v", err)
+		logger.Error("Error creating factory %v", err)
 		return
 	}
 
@@ -105,7 +105,7 @@ func main() {
 	// 	modules: modules,
 	// }
 
-	server := server.New(ctx, awsConfig, appConfig, logger, modules)
+	server := server.New(ctx, awsConfig, appConfig, logger, factory)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
