@@ -30,7 +30,7 @@ func (s *AuthService) generateToken(username string) (string, error) {
 	return token.SignedString(jwtKey)
 }
 
-func (s *AuthService) ValidateToken(tokenString string) (*Claims, error) {
+func (s *AuthService) validateToken(tokenString string) (*Claims, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		return jwtKey, nil

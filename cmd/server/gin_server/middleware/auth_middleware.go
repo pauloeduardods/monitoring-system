@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"monitoring-system/internal/auth"
+	"monitoring-system/domain/auth"
 
 	"github.com/gin-gonic/gin"
 )

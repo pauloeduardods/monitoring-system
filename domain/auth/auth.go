@@ -5,6 +5,7 @@ import (
 	"monitoring-system/pkg/logger"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -14,17 +15,28 @@ type Auth interface {
 	ValidateToken(tokenString string) (*Claims, error)
 }
 
-type AuthService struct {
-	authRepository AuthRepository
-	logger         logger.Logger
-}
-
 type Token struct {
 	Token string `json:"token"`
 	// RefreshToken string `json:"refresh_token"` //TODO: Implement refresh token
 }
 
-func NewAuthService(authRepository AuthRepository, logger logger.Logger) (Auth, error) {
+type AuthEntity struct {
+	ID       uuid.UUID
+	Username string
+	Password string `json:"-"`
+}
+
+type AuthService struct {
+	authRepository AuthRepository
+	logger         logger.Logger
+}
+
+type AuthRepository interface {
+	GetByUsername(username string) (*AuthEntity, error)
+	Save(username, password string) error
+}
+
+func NewAuth(authRepository AuthRepository, logger logger.Logger) (Auth, error) {
 	return &AuthService{authRepository: authRepository, logger: logger}, nil
 }
 
@@ -62,4 +74,8 @@ func (s *AuthService) Login(username, password string) (Token, error) {
 	}
 
 	return Token{Token: token}, nil
+}
+
+func (s *AuthService) ValidateToken(tokenString string) (*Claims, error) {
+	return s.validateToken(tokenString)
 }

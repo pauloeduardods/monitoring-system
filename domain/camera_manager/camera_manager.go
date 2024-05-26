@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"monitoring-system/internal/domain/camera"
+	"monitoring-system/domain/camera"
 	"monitoring-system/pkg/logger"
 	"os"
 	"runtime"

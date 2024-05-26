@@ -1,8 +1,9 @@
-package auth
+package repository
 
 import (
 	"database/sql"
 	"errors"
+	"monitoring-system/domain/auth"
 	"monitoring-system/pkg/app_error"
 	"monitoring-system/pkg/logger"
 
@@ -10,23 +11,12 @@ import (
 	"github.com/mattn/go-sqlite3"
 )
 
-type AuthEntity struct {
-	ID       uuid.UUID
-	Username string
-	Password string
-}
-
-type AuthRepository interface {
-	GetByUsername(username string) (*AuthEntity, error)
-	Save(username, password string) error
-}
-
-type AuthModel struct {
+type authRepository struct {
 	sqlDB  *sql.DB
 	logger logger.Logger
 }
 
-func NewAuthRepository(db *sql.DB, logger logger.Logger) (AuthRepository, error) {
+func NewAuthRepository(db *sql.DB, logger logger.Logger) (auth.AuthRepository, error) {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS users (
 			id       VARCHAR(36) PRIMARY KEY,
@@ -39,11 +29,11 @@ func NewAuthRepository(db *sql.DB, logger logger.Logger) (AuthRepository, error)
 		return nil, err
 	}
 
-	return &AuthModel{sqlDB: db, logger: logger}, nil
+	return &authRepository{sqlDB: db, logger: logger}, nil
 }
 
-func (a *AuthModel) GetByUsername(username string) (*AuthEntity, error) {
-	var entity AuthEntity
+func (a *authRepository) GetByUsername(username string) (*auth.AuthEntity, error) {
+	var entity auth.AuthEntity
 	var id string
 
 	err := a.sqlDB.QueryRow("SELECT id, username, password FROM users WHERE username = ?", username).Scan(&id, &entity.Username, &entity.Password)
@@ -65,7 +55,7 @@ func (a *AuthModel) GetByUsername(username string) (*AuthEntity, error) {
 	return &entity, nil
 }
 
-func (a *AuthModel) Save(username, password string) error {
+func (a *authRepository) Save(username, password string) error {
 	id := uuid.New()
 	_, err := a.sqlDB.Exec("INSERT INTO users (id, username, password) VALUES (?, ?, ?)", id, username, password)
 	if err != nil {

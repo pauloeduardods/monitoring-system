@@ -7,7 +7,6 @@ import (
 	"monitoring-system/cmd/factory"
 	"monitoring-system/cmd/server"
 	"monitoring-system/config"
-	"monitoring-system/internal/domain/camera_manager"
 	"monitoring-system/pkg/logger"
 	"os"
 	"os/signal"
@@ -71,12 +70,6 @@ func main() {
 	// 	return
 	// }
 
-	cm, err := camera_manager.NewCameraManager(ctx, logger)
-	if err != nil {
-		logger.Error("Error creating camera manager %v", err)
-		return
-	}
-
 	// cam := camera.NewWebcam(ctx, 0, logger)
 	// err = cam.Start()
 	// if err != nil {
@@ -89,7 +82,7 @@ func main() {
 	// 	return
 	// }
 
-	factory, err := factory.New(logger, db, cm)
+	factory, err := factory.New(ctx, logger, db)
 	if err != nil {
 		logger.Error("Error creating factory %v", err)
 		return
@@ -120,11 +113,6 @@ func main() {
 	// 	logger.Info("Starting application")
 	// 	app.runApplication()
 	// }()
-
-	if err := cm.CheckSystemCameras(); err != nil {
-		logger.Error("Error updating camera status %v", err)
-		return
-	}
 
 	wg.Wait()
 

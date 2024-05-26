@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"monitoring-system/internal/auth"
+	"monitoring-system/domain/auth"
 	"monitoring-system/pkg/validator"
 	"net/http"
 

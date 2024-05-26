@@ -2,7 +2,7 @@ package handler
 
 import (
 	"context"
-	"monitoring-system/internal/domain/camera"
+	"monitoring-system/domain/camera"
 	"monitoring-system/pkg/logger"
 	"net/http"
 

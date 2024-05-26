@@ -59,7 +59,7 @@ func (s *Gin) SetupApi() error {
 	apiRoutes := s.Gin.Group("/api/v1")
 
 	//Middlewares
-	authMiddleware := middleware.NewAuthMiddleware(s.factory.Services.Auth)
+	authMiddleware := middleware.NewAuthMiddleware(s.factory.Internal.Auth)
 
 	//Websocket
 	ginWs := apiRoutes.Group("/ws")
@@ -73,7 +73,7 @@ func (s *Gin) SetupApi() error {
 	s.Gin.StaticFS("/web", http.Dir("web/static"))
 
 	//Handlers
-	authHandler := handlers.NewAuthHandler(s.factory.Services.Auth, s.validator)
+	authHandler := handlers.NewAuthHandler(s.factory.Internal.Auth, s.validator)
 
 	//Routes
 	routes.ConfigAuthRoutes(apiRoutes, authHandler)
