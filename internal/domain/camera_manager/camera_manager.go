@@ -2,7 +2,6 @@ package camera_manager
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"monitoring-system/internal/domain/camera"
@@ -10,8 +9,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 const DARWIN_MAX_CAMERAS = 3
@@ -19,7 +16,6 @@ const DARWIN_MAX_CAMERAS = 3
 type CameraManager interface {
 	CheckSystemCameras() error
 	GetCameras() map[int]camera.Camera
-	// AddNotificationCallback(callback func(camera.Camera)) error
 	Close() error
 }
 
@@ -33,18 +29,16 @@ type cameraManager struct {
 	logger      logger.Logger
 	ctx         context.Context
 	cancel      context.CancelFunc
-	db          *sql.DB
 	commandChan chan command
 }
 
-func NewCameraManager(ctx context.Context, logger logger.Logger, db *sql.DB) (CameraManager, error) {
+func NewCameraManager(ctx context.Context, logger logger.Logger) (CameraManager, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	cm := &cameraManager{
 		cameras:     make(map[int]camera.Camera),
 		logger:      logger,
 		ctx:         ctx,
 		cancel:      cancel,
-		db:          db,
 		commandChan: make(chan command),
 	}
 
@@ -69,7 +63,6 @@ func (cm *cameraManager) execute(action func() error) error {
 }
 
 func (cm *cameraManager) newWebcam(deviceId int) error {
-	// return cm.execute(func() error {
 	if _, exists := cm.cameras[deviceId]; exists {
 		return errors.New("camera already exists")
 	}
@@ -112,7 +105,6 @@ func (cm *cameraManager) checkMacCameras() error {
 			}
 			err := cm.newWebcam(i)
 			if err != nil {
-				cm.logger.Error("Error checking camera %d: %v", i, err)
 				continue
 			}
 
@@ -137,7 +129,6 @@ func (cm *cameraManager) checkLinuxCameras() error {
 				}
 				err := cm.newWebcam(deviceID)
 				if err != nil {
-					cm.logger.Error("Error checking camera %d: %v", deviceID, err)
 					continue
 				}
 			}
