@@ -41,13 +41,7 @@ func main() {
 	}
 	defer db.Close()
 
-	configManager, err := config.NewConfigManager(db)
-	if err != nil {
-		logger.Error("Error creating config manager %v", err)
-		return
-	}
-
-	appConfig, err := configManager.LoadConfig()
+	appConfig, err := config.LoadConfig(".")
 	if err != nil {
 		logger.Error("Error loading configuration %v", err)
 		return

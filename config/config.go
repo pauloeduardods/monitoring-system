@@ -1,156 +1,54 @@
 package config
 
 import (
-	"database/sql"
 	"fmt"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/spf13/viper"
 )
 
 type AwsConfig struct {
-	Region       string
-	S3BucketName string
+	Region       string `mapstructure:"region"`
+	S3BucketName string `mapstructure:"s3_bucket_name"`
 }
 
 type ApiConfig struct {
-	Host string
-	Port int
+	Host string `mapstructure:"host"`
+	Port int    `mapstructure:"port"`
 }
 
 type Config struct {
-	Aws AwsConfig
-	Api ApiConfig
+	Aws AwsConfig `mapstructure:"aws"`
+	Api ApiConfig `mapstructure:"api"`
 }
 
-type ConfigManager struct {
-	db *sql.DB
+func setDefaults() {
+	viper.SetDefault("aws.region", "us-east-1")
+	viper.SetDefault("aws.s3_bucket_name", "golang-camera")
+	viper.SetDefault("api.host", "0.0.0.0")
+	viper.SetDefault("api.port", 4000)
 }
 
-func NewConfigManager(configDb *sql.DB) (*ConfigManager, error) {
-	createAWSConfigTable := `
-	CREATE TABLE IF NOT EXISTS aws_config (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		region TEXT NOT NULL,
-		s3_bucket_name TEXT NOT NULL
-	);`
+func LoadConfig(configPath string) (*Config, error) {
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(configPath)
 
-	createApiConfigTable := `
-	CREATE TABLE IF NOT EXISTS api_config (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		host TEXT NOT NULL,
-		port INTEGER NOT NULL
-	);`
+	setDefaults()
 
-	createCamerasConfigTable := `
-	CREATE TABLE IF NOT EXISTS cameras_config (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		max_camera_count INTEGER NOT NULL
-	);`
-
-	_, err := configDb.Exec(createAWSConfigTable)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = configDb.Exec(createApiConfigTable)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = configDb.Exec(createCamerasConfigTable)
-	if err != nil {
-		return nil, err
-	}
-
-	err = insertDefaultConfigs(configDb)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ConfigManager{db: configDb}, nil
-}
-
-func (cm *ConfigManager) LoadConfig() (*Config, error) {
-	awsConfig, err := cm.loadAWSConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	apiConfig, err := cm.loadApiConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	return &Config{
-		Aws: *awsConfig,
-		Api: *apiConfig,
-	}, nil
-}
-
-func (cm *ConfigManager) loadAWSConfig() (*AwsConfig, error) {
-	row := cm.db.QueryRow("SELECT region, s3_bucket_name FROM aws_config LIMIT 1")
-	var region, s3BucketName string
-	if err := row.Scan(&region, &s3BucketName); err != nil {
-		return nil, fmt.Errorf("error loading AWS config: %v", err)
-	}
-	return &AwsConfig{Region: region, S3BucketName: s3BucketName}, nil
-}
-
-func (cm *ConfigManager) loadApiConfig() (*ApiConfig, error) {
-	row := cm.db.QueryRow("SELECT host, port FROM api_config LIMIT 1")
-	var host string
-	var port int
-	if err := row.Scan(&host, &port); err != nil {
-		return nil, fmt.Errorf("error loading API config: %v", err)
-	}
-	return &ApiConfig{Host: host, Port: port}, nil
-}
-
-func (cm *ConfigManager) SaveAWSConfig(config *AwsConfig) error {
-	_, err := cm.db.Exec("INSERT INTO aws_config (region, s3_bucket_name) VALUES (?, ?)", config.Region, config.S3BucketName)
-	return err
-}
-
-func (cm *ConfigManager) SaveApiConfig(config *ApiConfig) error {
-	_, err := cm.db.Exec("INSERT INTO api_config (host, port) VALUES (?, ?)", config.Host, config.Port)
-	return err
-}
-
-func insertDefaultConfigs(db *sql.DB) error {
-	row := db.QueryRow("SELECT COUNT(*) FROM aws_config")
-	var count int
-	if err := row.Scan(&count); err != nil {
-		return fmt.Errorf("error checking AWS config table: %v", err)
-	}
-	if count == 0 {
-		_, err := db.Exec("INSERT INTO aws_config (region, s3_bucket_name) VALUES (?, ?)", "us-east-1", "golang-camera")
-		if err != nil {
-			return fmt.Errorf("error inserting default AWS config: %v", err)
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			if err := viper.SafeWriteConfigAs(configPath + "/config.yaml"); err != nil {
+				return nil, fmt.Errorf("error writing default config file: %v", err)
+			}
+		} else {
+			return nil, fmt.Errorf("error reading config file: %v", err)
 		}
 	}
 
-	row = db.QueryRow("SELECT COUNT(*) FROM api_config")
-	if err := row.Scan(&count); err != nil {
-		return fmt.Errorf("error checking API config table: %v", err)
-	}
-	if count == 0 {
-		_, err := db.Exec("INSERT INTO api_config (host, port) VALUES (?, ?)", "0.0.0.0", 4000)
-		if err != nil {
-			return fmt.Errorf("error inserting default API config: %v", err)
-		}
+	var config Config
+	if err := viper.Unmarshal(&config); err != nil {
+		return nil, fmt.Errorf("error unmarshalling config: %v", err)
 	}
 
-	row = db.QueryRow("SELECT COUNT(*) FROM cameras_config")
-	if err := row.Scan(&count); err != nil {
-		return fmt.Errorf("error checking cameras config table: %v", err)
-	}
-
-	if count == 0 {
-		_, err := db.Exec("INSERT INTO cameras_config (max_camera_count) VALUES (?)", 2)
-		if err != nil {
-			return fmt.Errorf("error inserting default cameras config: %v", err)
-		}
-	}
-
-	return nil
+	return &config, nil
 }

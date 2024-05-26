@@ -24,6 +24,11 @@ go.work.sum
 # Environment variables file
 .env
 
+# Configuration files
+*.toml
+*.yaml
+*.yml
+
 # Image files
 *.bmp
 *.gif
