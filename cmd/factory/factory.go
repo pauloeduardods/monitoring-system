@@ -57,9 +57,6 @@ func New(ctx context.Context, logger logger.Logger, sqlDb *sql.DB) (*Factory, er
 		return nil, err
 
 	}
-	if err != nil {
-		return nil, err
-	}
 
 	err = cm.CheckSystemCameras()
 	if err != nil {
