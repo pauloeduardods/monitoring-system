@@ -104,6 +104,8 @@ func (w *Camera) capture() {
 		default:
 			img := gocv.NewMat()
 
+			defer img.Close()
+
 			ok := w.webcam.Read(&img)
 			if !ok || img.Empty() {
 				retries++

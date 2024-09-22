@@ -68,6 +68,15 @@ func (wss *videoHandler) streamVideo(ctx context.Context, cam camera.CameraServi
 				continue
 			}
 
+			if conn == nil {
+				wss.logger.Error("WebSocket connection is nil")
+				return
+			}
+			if len(img) == 0 {
+				wss.logger.Error("Image is Empty")
+				continue
+			}
+
 			err = conn.WriteMessage(websocket.BinaryMessage, img)
 			if err != nil {
 				wss.logger.Error("Error writing message: %v", err)
