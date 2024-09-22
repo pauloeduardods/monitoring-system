@@ -58,7 +58,7 @@ func (wss *videoHandler) streamVideo(ctx context.Context, cam camera.CameraServi
 
 func (vh *videoHandler) VideoHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := WsUpgrader.Upgrade(w, r, nil)
-	if err != nil {
+	if err != nil || conn == nil {
 		vh.logger.Error("Error upgrading to websocket: %v", err)
 		return
 	}
