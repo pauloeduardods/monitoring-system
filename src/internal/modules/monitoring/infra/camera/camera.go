@@ -82,7 +82,6 @@ func (w *Camera) Start() error {
 }
 
 func (w *Camera) Close() error {
-	defer close(w.outputChan)
 	w.logger.Warning("Closing webcam", w.deviceID)
 	w.cancel()
 	close(w.done)
@@ -98,28 +97,26 @@ func (w *Camera) capture() {
 	for {
 		select {
 		case <-w.done:
+			w.logger.Info("Capture loop done for device", w.deviceID)
+			return
 		case <-w.ctx.Done():
-			w.logger.Warning("Camera capture stopped")
+			w.logger.Warning("Context canceled, stopping capture")
 			return
 		default:
 			img := gocv.NewMat()
 
-			defer img.Close()
-
-			ok := w.webcam.Read(&img)
-			if !ok || img.Empty() {
+			if ok := w.webcam.Read(&img); !ok || img.Empty() {
+				img.Close()
 				retries++
 				if retries >= maxRetries {
-					w.logger.Warning("Unable to read from device %d\n", w.deviceID)
+					w.logger.Warning("Unable to read from device %d after %d retries\n", w.deviceID, retries)
 					return
 				}
+				w.logger.Warning("Retrying capture for device %d", w.deviceID)
 				time.Sleep(1 * time.Second)
-
-				img = gocv.NewMatWithSize(w.details.Infos.Height, w.details.Infos.Width, gocv.MatTypeCV8UC3)
-				img.SetTo(gocv.NewScalar(0, 0, 0, 0))
-			} else {
-				retries = 0
+				continue
 			}
+			retries = 0
 
 			font := gocv.FontHersheyPlain
 			scale := 1.5
@@ -130,14 +127,16 @@ func (w *Camera) capture() {
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
 			gocv.PutText(&img, timestamp, position, font, scale, color, thickness)
 
-			// TODO: Check if need to check for done or ctx.Done
 			select {
 			case <-w.done:
+				w.logger.Warning("Capture stopped by done signal")
+				return
 			case <-w.ctx.Done():
+				w.logger.Warning("Capture stopped by context cancellation")
 				return
 			case w.outputChan <- img:
+				// Image sent successfully
 			}
-			// w.outputChan <- img
 		}
 	}
 }
@@ -145,21 +144,22 @@ func (w *Camera) capture() {
 func (w *Camera) Capture() ([]byte, error) {
 	select {
 	case <-w.done:
+		w.logger.Info("Camera done signal received, stopping capture", w.deviceID)
+		return nil, nil
 	case <-w.ctx.Done():
-		w.logger.Info("Camera capture stopped", w.deviceID)
+		w.logger.Info("Context done, stopping capture", w.deviceID)
 		return nil, nil
 	case img := <-w.outputChan:
 		buf, err := gocv.IMEncode(gocv.JPEGFileExt, img)
+		img.Close()
 		if err != nil {
 			w.logger.Error("Error encoding image: %v\n", err)
 			return nil, err
 		}
-		defer img.Close()
 		defer buf.Close()
 
 		return buf.GetBytes(), nil
 	}
-	return nil, nil
 }
 
 func (w *Camera) RecordVideo(ctx context.Context, filename string) error {
@@ -172,8 +172,10 @@ func (w *Camera) RecordVideo(ctx context.Context, filename string) error {
 	for {
 		select {
 		case <-w.done:
+			w.logger.Info("Recording done for device", w.deviceID)
+			return nil
 		case <-ctx.Done():
-		case <-w.ctx.Done():
+			w.logger.Warning("Recording stopped by context cancellation")
 			return nil
 		case img := <-w.outputChan:
 			writer.Write(img)
