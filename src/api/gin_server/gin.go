@@ -57,6 +57,10 @@ func (s *Gin) SetupApi() error {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	s.Gin.GET("/", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/web/home.html")
+	})
+
 	apiRoutes := s.Gin.Group("/api/v1")
 
 	//Middlewares
