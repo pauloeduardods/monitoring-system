@@ -5,8 +5,13 @@ import (
 	"monitoring-system/src/internal/modules/monitoring/domain/camera"
 	"monitoring-system/src/pkg/logger"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
+)
+
+const (
+	FPS_STREAM_LIMIT = 10
 )
 
 var WsUpgrader = websocket.Upgrader{
@@ -36,17 +41,33 @@ func NewVideoHandler(ctx context.Context, cam camera.CameraService, logger logge
 func (wss *videoHandler) streamVideo(ctx context.Context, cam camera.CameraService, conn *websocket.Conn) {
 	defer conn.Close()
 
+	frameInterval := time.Second / time.Duration(FPS_STREAM_LIMIT)
+
+	lastFrameTime := time.Now()
+
 	for {
 		select {
 		case <-ctx.Done():
+			return
 		case <-cam.Done():
 			return
 		default:
+
+			elapsed := time.Since(lastFrameTime)
+			if elapsed < frameInterval {
+
+				time.Sleep(frameInterval - elapsed)
+				continue
+			}
+
+			lastFrameTime = time.Now()
+
 			img, err := cam.Capture()
 			if err != nil || img == nil {
 				wss.logger.Error("Error capturing image: %v", err)
 				continue
 			}
+
 			err = conn.WriteMessage(websocket.BinaryMessage, img)
 			if err != nil {
 				wss.logger.Error("Error writing message: %v", err)
