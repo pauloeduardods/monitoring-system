@@ -12,17 +12,11 @@ PKGS=$(shell $(GO) list ./... | grep -v /vendor/)
 
 all: build
 
-build: fmt vet
+build:
 	$(GO) build -o $(BINARY) $(CMD_DIR)/main.go
 
 run: build
 	$(BINARY)
-
-fmt:
-	$(GOFMT) -w $(CMD_DIR) $(CONFIG_DIR) $(INTERNAL_DIR) $(PKG_DIR)
-
-vet:
-	$(GO) vet $(PKGS)
 
 test:
 	$(GO) test -v $(PKGS)
@@ -34,4 +28,4 @@ clean:
 deps:
 	$(GO) get -u ./...
 
-.PHONY: all build run fmt vet test clean deps env
+.PHONY: all build run test clean deps env
