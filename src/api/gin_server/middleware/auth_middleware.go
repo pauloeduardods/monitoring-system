@@ -40,14 +40,14 @@ func (a *AuthMiddlewareImpl) AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		user, err := a.authRepo.GetByUsername(c.Request.Context(), claims.Username)
-		if err != nil {
-			c.AbortWithStatusJSON(401, gin.H{"error": "Unauthorized"})
-		}
+		// user, err := a.authRepo.GetByUsername(c.Request.Context(), claims.Username)
+		// if err != nil {
+		// 	c.AbortWithStatusJSON(401, gin.H{"error": "Unauthorized"})
+		// }
 
 		c.Set("jwtToken", token)
 		c.Set("claims", claims)
-		c.Set("user", user)
+		// c.Set("user", user)
 
 		c.Next()
 	}
@@ -75,15 +75,15 @@ func (a *AuthMiddlewareImpl) AuthMiddlewareRegister() gin.HandlerFunc {
 			return
 		}
 
-		user, err := a.authRepo.GetByUsername(c.Request.Context(), claims.Username)
-		if err != nil {
-			c.AbortWithStatusJSON(401, gin.H{"error": "Unauthorized"})
-			return
-		}
+		// user, err := a.authRepo.GetByUsername(c.Request.Context(), claims.Username)
+		// if err != nil {
+		// 	c.AbortWithStatusJSON(401, gin.H{"error": "Unauthorized"})
+		// 	return
+		// }
 
 		c.Set("jwtToken", token)
 		c.Set("claims", claims)
-		c.Set("user", user)
+		// c.Set("user", user)
 
 		c.Next()
 	}
@@ -99,14 +99,14 @@ func (a *AuthMiddlewareImpl) AuthMiddlewareWS() gin.HandlerFunc {
 			return
 		}
 
-		user, err := a.authRepo.GetByUsername(c.Request.Context(), claims.Username)
-		if err != nil {
-			c.AbortWithStatusJSON(401, gin.H{"error": "Unauthorized"})
-		}
+		// user, err := a.authRepo.GetByUsername(c.Request.Context(), claims.Username)
+		// if err != nil {
+		// 	c.AbortWithStatusJSON(401, gin.H{"error": "Unauthorized"})
+		// }
 
 		c.Set("jwtToken", token)
 		c.Set("claims", claims)
-		c.Set("user", user)
+		// c.Set("user", user)
 
 		c.Next()
 	}
