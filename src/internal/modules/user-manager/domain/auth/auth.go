@@ -64,6 +64,7 @@ func (i LoginInput) Validate() error {
 type AuthRepository interface {
 	GetByUsername(ctx context.Context, username string) (*AuthEntity, error)
 	Save(ctx context.Context, username, password string) error
+	CountUsers(ctx context.Context) (int, error)
 }
 
 type Token struct {

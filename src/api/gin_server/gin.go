@@ -64,7 +64,7 @@ func (s *Gin) SetupApi() error {
 	apiRoutes := s.Gin.Group("/api/v1")
 
 	//Middlewares
-	authMiddleware := middleware.NewAuthMiddleware(s.factory.UserManager.Infra.AuthService)
+	authMiddleware := middleware.NewAuthMiddleware(s.factory.UserManager.Infra.AuthService, s.factory.UserManager.Infra.AuthRepo)
 
 	//Websocket
 	ginWs := apiRoutes.Group("/ws")
@@ -81,6 +81,6 @@ func (s *Gin) SetupApi() error {
 	authHandler := handlers.NewAuthHandler(s.factory.UserManager.UseCases, s.validator)
 
 	//Routes
-	routes.ConfigAuthRoutes(apiRoutes, authHandler)
+	routes.ConfigAuthRoutes(apiRoutes, authHandler, authMiddleware)
 	return nil
 }

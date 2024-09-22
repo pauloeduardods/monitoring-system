@@ -71,3 +71,9 @@ func (a *authRepository) Save(ctx context.Context, username, password string) er
 	}
 	return nil
 }
+
+func (a authRepository) CountUsers(ctx context.Context) (int, error) {
+	var count int
+	err := a.sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
+	return count, err
+}

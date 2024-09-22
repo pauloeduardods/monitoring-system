@@ -71,15 +71,24 @@
           const username = document.getElementById("username").value;
           const password = document.getElementById("password").value;
           const messageDiv = document.getElementById("message");
-          messageDiv.innerHTML = ""; // Clear previous messages
+          messageDiv.innerHTML = "";
+
+          const token = localStorage.getItem("authToken");
+          console.log(token);
+
+          const headers = {
+            "Content-Type": "application/json",
+          };
+
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
 
           const response = await fetch(
             `${window.location.origin}/api/v1/auth/register`,
             {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
+              headers: headers,
               body: JSON.stringify({ username, password }),
             }
           );
