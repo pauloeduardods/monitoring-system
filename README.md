@@ -1,13 +1,12 @@
 # Camera Monitor
 
-Este projeto é um sistema de monitoramento de câmeras em Go que grava vídeos de uma webcam e os salva no Amazon S3. Ele foi projetado para rodar em um Raspberry Pi, mas pode ser executado em qualquer sistema Linux com suporte a Go e OpenCV.
+Este projeto é um sistema de monitoramento de câmeras em Go que grava vídeos de uma webcam utilizando OpenCV. Ele foi projetado para rodar em um Raspberry Pi, mas pode ser executado em qualquer sistema Linux ou Mac com suporte a Go e OpenCV.
 
 ## Pré-requisitos
 
 - Go (Golang) instalado
 - OpenCV instalado
 - Biblioteca `gocv` instalada
-- AWS CLI configurado com credenciais válidas
 
 ## Instalação
 
@@ -24,24 +23,40 @@ Este projeto é um sistema de monitoramento de câmeras em Go que grava vídeos 
     make deps
    ```
 
-3. **Configure as variáveis de ambiente:**
-   Crie um arquivo .env na raiz do projeto com o seguinte conteúdo:
+3.**Execute o projeto (sem Docker):**
 
-   ```sh
-   AWS_REGION=us-east-1
-   AWS_BUCKET=nome-do-seu-bucket
-   ```
+```sh
+make run
+```
 
-4. **Execute o projeto:**
+## Executando com Docker
 
-   ```sh
-   make run
-   ```
+1. Build da imagem Docker
 
-## Contribuição
+Caso prefira rodar o projeto dentro de um container Docker, você pode buildar a imagem da seguinte forma:
 
-    1.	Fork este repositório
-    2.	Crie uma nova branch (git checkout -b feature/nova-feature)
-    3.	Commit suas alterações (git commit -m 'Adiciona nova feature')
-    4.	Push para a branch (git push origin feature/nova-feature)
-    5.	Crie um novo Pull Request
+```sh
+docker build -t go-camera .
+```
+
+2. Executando o container Docker com acesso à câmera
+
+Para rodar o container com acesso aos dispositivos de câmera, use a flag --device para mapear os dispositivos de vídeo para dentro do contêiner. Geralmente, as câmeras no Linux estão mapeadas em /dev/video\*.
+Exemplo para rodar o container com uma câmera conectada:
+
+```sh
+docker run --rm -it \
+ --device=/dev/video0:/dev/video0 \
+ -p 4000:4000 \
+ go-camera
+```
+
+Se houver mais câmeras conectadas, você pode mapear mais dispositivos conforme necessário, por exemplo, adicionando --device=/dev/video1:/dev/video1. 3. Redirecionar todas as câmeras (opcional)
+
+Caso você queira dar ao contêiner acesso a todos os dispositivos do sistema, você pode utilizar o modo --privileged:
+
+```sh
+docker run --rm -it --privileged -p 4000:4000 go-camera
+```
+
+Isso garante que todos os dispositivos sejam acessíveis dentro do contêiner.
