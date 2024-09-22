@@ -6,24 +6,16 @@ import (
 	"github.com/spf13/viper"
 )
 
-type AwsConfig struct {
-	Region       string `mapstructure:"region"`
-	S3BucketName string `mapstructure:"s3_bucket_name"`
-}
-
 type ApiConfig struct {
 	Host string `mapstructure:"host"`
 	Port int    `mapstructure:"port"`
 }
 
 type Config struct {
-	Aws AwsConfig `mapstructure:"aws"`
 	Api ApiConfig `mapstructure:"api"`
 }
 
 func setDefaults() {
-	viper.SetDefault("aws.region", "us-east-1")
-	viper.SetDefault("aws.s3_bucket_name", "golang-camera")
 	viper.SetDefault("api.host", "0.0.0.0")
 	viper.SetDefault("api.port", 4000)
 }

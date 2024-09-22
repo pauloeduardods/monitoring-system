@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"monitoring-system/cmd/factory"
-	"monitoring-system/cmd/server"
+	server "monitoring-system/api"
 	"monitoring-system/config"
+	"monitoring-system/factory"
 	"monitoring-system/pkg/logger"
 	"os"
 	"os/signal"
@@ -58,12 +58,6 @@ func main() {
 		cancel()
 	}()
 
-	awsConfig, err := config.LoadAwsConfig(ctx, appConfig.Aws, logger)
-	if err != nil {
-		logger.Error("Error loading AWS configuration %v", err)
-		return
-	}
-
 	// storage, err := storage.NewStorage(logger, awsConfig, appConfig.Aws.S3BucketName)
 	// if err != nil {
 	// 	logger.Error("Error creating storage %v", err)
@@ -82,9 +76,15 @@ func main() {
 	// 	return
 	// }
 
-	factory, err := factory.New(ctx, logger, db)
+	factory, err := factory.NewFactory(ctx, logger, db)
 	if err != nil {
 		logger.Error("Error creating factory %v", err)
+		return
+	}
+
+	err = factory.Monitoring.CameraManager.CheckSystemCameras()
+	if err != nil {
+		logger.Error("Error Checking system cameras", err)
 		return
 	}
 
@@ -98,7 +98,7 @@ func main() {
 	// 	modules: modules,
 	// }
 
-	server := server.New(ctx, awsConfig, appConfig, logger, factory)
+	server := server.New(ctx, appConfig, logger, factory)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
