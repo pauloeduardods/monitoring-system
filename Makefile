@@ -1,14 +1,12 @@
 BINARY=bin/monitoring-system.out
 
-CMD_DIR=./cmd
-CONFIG_DIR=./config
-INTERNAL_DIR=./internal
-PKG_DIR=./pkg
+CMD_DIR=./src/cmd
+CONFIG_DIR=./src/config
+INTERNAL_DIR=./src/internal
+PKG_DIR=./src/pkg
 
 GO=go
 GOFMT=gofmt
-
-CONFIG_FILE=config/config.go
 
 PKGS=$(shell $(GO) list ./... | grep -v /vendor/)
 
