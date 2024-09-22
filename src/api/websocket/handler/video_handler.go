@@ -43,7 +43,7 @@ func (wss *videoHandler) streamVideo(ctx context.Context, cam camera.CameraServi
 			return
 		default:
 			img, err := cam.Capture()
-			if err != nil {
+			if err != nil || img == nil {
 				wss.logger.Error("Error capturing image: %v", err)
 				continue
 			}

@@ -39,7 +39,7 @@ func (wss *WebSocketServer) videoHandler(c *gin.Context) {
 		return
 	}
 	cam, ok := wss.factory.Monitoring.CameraManager.GetCameras()[id]
-	if !ok {
+	if !ok || cam == nil {
 		c.Error(app_error.NewApiError(http.StatusNotFound, "Camera not found"))
 		return
 	}
