@@ -13,8 +13,8 @@ Este projeto é um sistema de monitoramento de câmeras em Go que grava vídeos 
 1. **Clone o repositório:**
 
    ```sh
-   git clone https://github.com/seu-usuario/go-camera.git
-   cd go-camera
+   git clone https://github.com/pauloeduardods/monitoring-system
+   cd monitoring-system
    ```
 
 2. **Instale as dependências:**
@@ -36,7 +36,7 @@ Este projeto é um sistema de monitoramento de câmeras em Go que grava vídeos 
 Caso prefira rodar o projeto dentro de um container Docker, você pode buildar a imagem da seguinte forma:
 
    ```sh
-   docker build -t go-camera .
+   docker build -t monitoring-system .
    ```
 
 2. Executando o container Docker com acesso à câmera
@@ -48,7 +48,7 @@ Exemplo para rodar o container com uma câmera conectada:
    docker run --rm -it \
     --device=/dev/video0:/dev/video0 \
     -p 4000:4000 \
-    go-camera
+    monitoring-system
    ```
 
 Se houver mais câmeras conectadas, você pode mapear mais dispositivos conforme necessário, por exemplo, adicionando --device=/dev/video1:/dev/video1. 3. Redirecionar todas as câmeras (opcional)
@@ -56,7 +56,7 @@ Se houver mais câmeras conectadas, você pode mapear mais dispositivos conforme
 Caso você queira dar ao contêiner acesso a todos os dispositivos do sistema, você pode utilizar o modo --privileged:
 
    ```sh
-   docker run --rm -it --privileged -p 4000:4000 go-camera
+   docker run --rm -it --privileged -p 4000:4000 monitoring-system
    ```
 
 Isso garante que todos os dispositivos sejam acessíveis dentro do contêiner.
