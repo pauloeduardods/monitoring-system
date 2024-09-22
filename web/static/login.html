@@ -88,7 +88,7 @@
 
           if (response.status === 200) {
             localStorage.setItem("authToken", data.token);
-            window.location.href = "home.html";
+            window.location.href = "/";
           } else if (response.status === 401) {
             messageDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
           } else {

@@ -86,19 +86,44 @@
           ws.onmessage = function (event) {
             const arrayBuffer = event.data;
             const blob = new Blob([arrayBuffer], { type: "image/jpeg" });
-            videoStreams[cameraIndex].src = URL.createObjectURL(blob);
+            const imageUrl = URL.createObjectURL(blob);
+
+            videoStreams[cameraIndex].src = imageUrl;
+
+            if (previousUrl) {
+              URL.revokeObjectURL(previousUrl);
+            }
           };
+
           ws.onclose = function (event) {
-            console.log(event);
-            // if (event.code === 1006) {
-            //   localStorage.removeItem("authToken");
-            //   window.location.href = "login.html";
-            // } else {
             console.log(`WebSocket for camera ${cameraIndex} closed: `, event);
-            // }
+
+            if (event.code === 1006) {
+              messageDiv.textContent = `Connection closed abnormally. Please check your credentials or token.`;
+
+              if (cameraIndex === 0 || cameraIndex === 1) {
+                messageDiv.textContent = `Error: Camera ${cameraIndex} not found or inaccessible.`;
+              } else {
+                localStorage.removeItem("authToken");
+                setTimeout(() => {
+                  window.location.href = "login.html";
+                }, 3000);
+              }
+            }
           };
+
           ws.onerror = function (event) {
             messageDiv.textContent = `WebSocket error for camera ${cameraIndex}: ${event.message}`;
+
+            if (
+              event.message.includes("401") ||
+              event.message.includes("403")
+            ) {
+              localStorage.removeItem("authToken");
+              setTimeout(() => {
+                window.location.href = "login.html";
+              }, 3000);
+            }
           };
         };
 
