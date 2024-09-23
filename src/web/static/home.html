@@ -75,6 +75,8 @@
           return;
         }
 
+        let previousUrls = [null, null];
+
         const connectWebSocket = (cameraIndex) => {
           const ws = new WebSocket(
             `ws://${
@@ -88,11 +90,12 @@
             const blob = new Blob([arrayBuffer], { type: "image/jpeg" });
             const imageUrl = URL.createObjectURL(blob);
 
-            videoStreams[cameraIndex].src = imageUrl;
-
-            if (previousUrl) {
-              URL.revokeObjectURL(previousUrl);
+            if (previousUrls[cameraIndex]) {
+              URL.revokeObjectURL(previousUrls[cameraIndex]);
             }
+
+            videoStreams[cameraIndex].src = imageUrl;
+            previousUrls[cameraIndex] = imageUrl;
           };
 
           ws.onclose = function (event) {
