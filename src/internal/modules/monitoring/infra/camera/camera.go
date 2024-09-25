@@ -85,6 +85,7 @@ func (w *Camera) Start() error {
 	webcam.Set(gocv.VideoCaptureFrameWidth, 640)
 	webcam.Set(gocv.VideoCaptureFrameHeight, 480)
 	webcam.Set(gocv.VideoCaptureFPS, 15)
+	webcam.Set(gocv.VideoCaptureFOURCC, float64(webcam.ToCodec("MJPG")))
 
 	w.details.Infos = infos
 
