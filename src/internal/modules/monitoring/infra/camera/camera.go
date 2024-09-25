@@ -62,11 +62,16 @@ func (w *Camera) getInfos() (camera.Infos, error) {
 }
 
 func (w *Camera) Start() error {
-	w.logger.Info("Starting webcam", w.deviceID)
+	// w.logger.Info("Starting webcam", w.deviceID)
 	webcam, err := gocv.OpenVideoCapture(w.deviceID)
 	if err != nil {
 		return err
 	}
+
+	if !webcam.IsOpened() {
+		return fmt.Errorf("error starting webcam device %d", w.deviceID)
+	}
+
 	w.webcam = webcam
 	infos, err := w.getInfos()
 	if err != nil {
@@ -112,7 +117,7 @@ func (w *Camera) capture() {
 					w.logger.Warning("Unable to read from device %d after %d retries\n", w.deviceID, retries)
 					return
 				}
-				w.logger.Warning("Retrying capture for device %d", w.deviceID)
+				// w.logger.Warning("Retrying capture for device %d", w.deviceID)
 				time.Sleep(1 * time.Second)
 				continue
 			}
@@ -150,8 +155,8 @@ func (w *Camera) Capture() ([]byte, error) {
 		w.logger.Info("Context done, stopping capture", w.deviceID)
 		return nil, nil
 	case img := <-w.outputChan:
+		defer img.Close()
 		buf, err := gocv.IMEncode(gocv.JPEGFileExt, img)
-		img.Close()
 		if err != nil {
 			w.logger.Error("Error encoding image: %v\n", err)
 			return nil, err

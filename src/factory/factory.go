@@ -27,6 +27,7 @@ type UserManagerInfra struct {
 
 type Monitoring struct {
 	CameraManager monitoring_use_cases.CameraManager
+	UseCases      *monitoring_use_cases.MonitoringUseCases
 }
 
 func NewUserManager(ctx context.Context, logger logger.Logger, sqlDb *sql.DB) (*UserManager, error) {
@@ -57,8 +58,11 @@ func NewMonitoring(ctx context.Context, logger logger.Logger) (*Monitoring, erro
 		logger.Error("Error creating monitoring camera manager %v", err)
 		return nil, err
 	}
+	monitoringUseCases := monitoring_use_cases.NewMonitoringUseCases(logger, monitoring)
+
 	return &Monitoring{
 		CameraManager: monitoring,
+		UseCases:      monitoringUseCases,
 	}, nil
 }
 

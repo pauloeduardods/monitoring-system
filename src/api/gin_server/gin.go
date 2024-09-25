@@ -79,8 +79,10 @@ func (s *Gin) SetupApi() error {
 
 	//Handlers
 	authHandler := handlers.NewAuthHandler(s.factory.UserManager.UseCases, s.validator)
+	monitorHandlers := handlers.NewCameraHandler(s.factory.Monitoring.UseCases)
 
 	//Routes
 	routes.ConfigAuthRoutes(apiRoutes, authHandler, authMiddleware)
+	routes.ConfigMonitoringRoutes(apiRoutes, monitorHandlers, authMiddleware)
 	return nil
 }
