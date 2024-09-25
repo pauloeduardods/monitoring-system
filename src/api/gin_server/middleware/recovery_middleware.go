@@ -7,11 +7,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RecoveryHandler(log logger.Logger) gin.RecoveryFunc {
-	return func(c *gin.Context, err any) {
+func RecoveryHandler(log logger.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("Recovered from panic!!!", r)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+				c.Abort()
+			}
+		}()
 		c.Next()
-		log.Error("Error occurred %v", err)
-		c.AbortWithStatusJSON(http.StatusInternalServerError, map[string]string{"message": "Service Unavailable"})
-		c.Abort()
 	}
 }

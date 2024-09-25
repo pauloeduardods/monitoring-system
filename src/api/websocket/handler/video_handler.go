@@ -39,10 +39,19 @@ func NewVideoHandler(ctx context.Context, cam camera.CameraService, logger logge
 }
 
 func (wss *videoHandler) streamVideo(ctx context.Context, cam camera.CameraService, conn *websocket.Conn) {
+	defer func() {
+		if r := recover(); r != nil {
+			wss.logger.Error("Recovered from panic in streamVideo: %v", r)
+			conn.Close()
+		}
+	}()
+
 	defer conn.Close()
 
 	frameInterval := time.Second / time.Duration(FPS_STREAM_LIMIT)
-	lastFrameTime := time.Now()
+
+	ticker := time.NewTicker(frameInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -50,8 +59,7 @@ func (wss *videoHandler) streamVideo(ctx context.Context, cam camera.CameraServi
 			return
 		case <-cam.Done():
 			return
-		case <-time.After(frameInterval - time.Since(lastFrameTime)):
-			lastFrameTime = time.Now()
+		case <-ticker.C:
 			img, err := cam.Capture()
 			if err != nil {
 				wss.logger.Error("Error capturing image from camera %d: %v", wss.camera.GetDetails().ID, err)
@@ -64,6 +72,7 @@ func (wss *videoHandler) streamVideo(ctx context.Context, cam camera.CameraServi
 			err = conn.WriteMessage(websocket.BinaryMessage, img)
 			if err != nil {
 				wss.logger.Error("Error sending image through WebSocket for camera %d: %v", wss.camera.GetDetails().ID, err)
+				conn.Close()
 				return
 			}
 		}

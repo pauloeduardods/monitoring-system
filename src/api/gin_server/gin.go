@@ -45,7 +45,7 @@ func (s *Gin) SetupCors() {
 }
 
 func (s *Gin) SetupMiddlewares() {
-	s.Gin.Use(gin.CustomRecovery(middleware.RecoveryHandler(s.log)))
+	s.Gin.Use(middleware.RecoveryHandler(s.log))
 	s.Gin.Use(gin.Logger())
 	s.Gin.Use(middleware.ErrorHandler(s.log))
 
