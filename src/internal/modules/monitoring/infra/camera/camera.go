@@ -77,6 +77,10 @@ func (w *Camera) Start() error {
 	if err != nil {
 		return err
 	}
+
+	if infos.FPS <= 0 {
+		return fmt.Errorf("error starting webcam device %d fps: %f", w.deviceID, infos.FPS)
+	}
 	w.details.Infos = infos
 
 	go w.capture()
