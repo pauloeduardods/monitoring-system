@@ -58,7 +58,7 @@ func (s *Gin) SetupApi() error {
 	})
 
 	s.Gin.GET("/", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/web/home.html")
+		c.Redirect(http.StatusMovedPermanently, "/web/home")
 	})
 
 	apiRoutes := s.Gin.Group("/api/v1")

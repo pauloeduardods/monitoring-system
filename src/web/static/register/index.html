@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login</title>
+    <title>Register</title>
     <link
       href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
       rel="stylesheet"
@@ -25,8 +25,8 @@
       <div class="row justify-content-center">
         <div class="col-md-6">
           <div class="card">
-            <h3 class="card-title text-center">Login</h3>
-            <form id="loginForm">
+            <h3 class="card-title text-center">Register</h3>
+            <form id="registerForm">
               <div class="form-group">
                 <label for="username">Username</label>
                 <input
@@ -48,12 +48,12 @@
                 />
               </div>
               <button type="submit" class="btn btn-primary btn-block">
-                Login
+                Register
               </button>
             </form>
             <div id="message" class="text-center mt-3"></div>
             <div class="text-center mt-3">
-              <a href="register.html">Don't have an account? Register here</a>
+              <a href="/web/login">Already have an account? Login here</a>
             </div>
           </div>
         </div>
@@ -62,39 +62,6 @@
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <script>
-      document
-        .getElementById("loginForm")
-        .addEventListener("submit", async function (event) {
-          event.preventDefault();
-
-          const username = document.getElementById("username").value;
-          const password = document.getElementById("password").value;
-          const messageDiv = document.getElementById("message");
-          messageDiv.innerHTML = ""; // Clear previous messages
-
-          const response = await fetch(
-            `${window.location.origin}/api/v1/auth/login`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ username, password }),
-            }
-          );
-
-          const data = await response.json();
-
-          if (response.status === 200) {
-            localStorage.setItem("authToken", data.token);
-            window.location.href = "home.html";
-          } else if (response.status === 401) {
-            messageDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
-          } else {
-            messageDiv.innerHTML = `<div class="alert alert-danger">An error occurred. Please try again.</div>`;
-          }
-        });
-    </script>
+    <script src="index.js"></script>
   </body>
 </html>
