@@ -7,10 +7,10 @@ require (
 	github.com/go-playground/validator/v10 v10.20.0
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/websocket v1.5.1
+	github.com/gorilla/websocket v1.5.3
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/spf13/viper v1.18.2
-	gocv.io/x/gocv v0.36.1
+	gocv.io/x/gocv v0.38.0
 	golang.org/x/crypto v0.23.0
 )
 
