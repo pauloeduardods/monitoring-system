@@ -41,14 +41,15 @@ document.addEventListener("DOMContentLoaded", async function () {
       const div = document.createElement("div");
       div.classList.add("mb-3");
       div.innerHTML = `
-        <img
-          id="videoStream${camera.ID}"
-          width="640"
-          height="480"
-          alt="Camera Stream ${camera.ID}"
-          class="img-fluid videoStream mb-3"
-        />
-      `;
+      <img
+        id="videoStream${camera.ID}"
+        width="640"
+        height="480"
+        alt="Camera Stream ${camera.ID}"
+        class="img-fluid videoStream mb-3"
+        onerror="this.style.backgroundColor='black'; this.src='';"
+      />
+    `;
       container.appendChild(div);
       previousUrls.push(null);
     });
