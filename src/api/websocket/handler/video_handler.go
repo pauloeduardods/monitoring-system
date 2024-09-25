@@ -42,7 +42,6 @@ func (wss *videoHandler) streamVideo(ctx context.Context, cam camera.CameraServi
 	defer conn.Close()
 
 	frameInterval := time.Second / time.Duration(FPS_STREAM_LIMIT)
-
 	lastFrameTime := time.Now()
 
 	for {
@@ -51,35 +50,20 @@ func (wss *videoHandler) streamVideo(ctx context.Context, cam camera.CameraServi
 			return
 		case <-cam.Done():
 			return
-		default:
-
-			elapsed := time.Since(lastFrameTime)
-			if elapsed < frameInterval {
-
-				time.Sleep(frameInterval - elapsed)
-				continue
-			}
-
+		case <-time.After(frameInterval - time.Since(lastFrameTime)):
 			lastFrameTime = time.Now()
-
 			img, err := cam.Capture()
-			if err != nil || img == nil {
-				wss.logger.Error("Error capturing image: %v", err)
+			if err != nil {
+				wss.logger.Error("Error capturing image from camera %d: %v", wss.camera.GetDetails().ID, err)
 				continue
-			}
-
-			if conn == nil {
-				wss.logger.Error("WebSocket connection is nil")
-				return
 			}
 			if len(img) == 0 {
-				wss.logger.Error("Image is Empty")
+				wss.logger.Error("Empty image captured from camera %d", wss.camera.GetDetails().ID)
 				continue
 			}
-
 			err = conn.WriteMessage(websocket.BinaryMessage, img)
 			if err != nil {
-				wss.logger.Error("Error writing message: %v", err)
+				wss.logger.Error("Error sending image through WebSocket for camera %d: %v", wss.camera.GetDetails().ID, err)
 				return
 			}
 		}
@@ -89,7 +73,7 @@ func (wss *videoHandler) streamVideo(ctx context.Context, cam camera.CameraServi
 func (vh *videoHandler) VideoHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := WsUpgrader.Upgrade(w, r, nil)
 	if err != nil || conn == nil {
-		vh.logger.Error("Error upgrading to websocket: %v", err)
+		vh.logger.Error("Error upgrading to websocket: %v", err, r)
 		return
 	}
 	go vh.streamVideo(vh.ctx, vh.camera, conn)
