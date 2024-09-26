@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"monitoring-system/src/config"
 	"monitoring-system/src/internal/modules/user-manager/domain/auth"
 	"monitoring-system/src/pkg/app_error"
 	"monitoring-system/src/pkg/logger"
@@ -12,15 +13,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtKey = []byte("my_secret_key") //TODO: move to env
-
 type AuthService struct {
 	authRepository auth.AuthRepository
 	logger         logger.Logger
+	config         *config.Config
 }
 
-func NewAuth(authRepository auth.AuthRepository, logger logger.Logger) (auth.AuthService, error) {
-	return &AuthService{authRepository: authRepository, logger: logger}, nil
+func NewAuth(authRepository auth.AuthRepository, logger logger.Logger, config *config.Config) (auth.AuthService, error) {
+	return &AuthService{authRepository: authRepository, logger: logger, config: config}, nil
 }
 
 func (s *AuthService) Register(ctx context.Context, input auth.RegisterInput) error {
@@ -83,13 +83,13 @@ func (s *AuthService) generateToken(username string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtKey)
+	return token.SignedString([]byte(s.config.JwtKey))
 }
 
 func (s *AuthService) validateToken(tokenString string) (*auth.Claims, error) {
 	claims := &auth.Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
+		return []byte(s.config.JwtKey), nil
 	})
 
 	if err != nil || !token.Valid {

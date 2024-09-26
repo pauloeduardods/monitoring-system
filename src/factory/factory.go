@@ -3,6 +3,7 @@ package factory
 import (
 	"context"
 	"database/sql"
+	"monitoring-system/src/config"
 	monitoring_use_cases "monitoring-system/src/internal/modules/monitoring/usecases"
 	"monitoring-system/src/internal/modules/user-manager/domain/auth"
 	auth_infra "monitoring-system/src/internal/modules/user-manager/infra/auth"
@@ -30,14 +31,14 @@ type Monitoring struct {
 	UseCases      *monitoring_use_cases.MonitoringUseCases
 }
 
-func NewUserManager(ctx context.Context, logger logger.Logger, sqlDb *sql.DB) (*UserManager, error) {
+func NewUserManager(ctx context.Context, logger logger.Logger, sqlDb *sql.DB, config *config.Config) (*UserManager, error) {
 	authRepo, err := auth_infra.NewAuthRepository(ctx, sqlDb, logger)
 	if err != nil {
 		logger.Error("Error creating auth repository %v", err)
 		return nil, err
 	}
 
-	authService, err := auth_infra.NewAuth(authRepo, logger)
+	authService, err := auth_infra.NewAuth(authRepo, logger, config)
 	if err != nil {
 		logger.Error("Error creating auth service %v", err)
 		return nil, err
@@ -66,8 +67,8 @@ func NewMonitoring(ctx context.Context, logger logger.Logger) (*Monitoring, erro
 	}, nil
 }
 
-func NewFactory(ctx context.Context, logger logger.Logger, sqlDb *sql.DB) (*Factory, error) {
-	userManager, err := NewUserManager(ctx, logger, sqlDb)
+func NewFactory(ctx context.Context, logger logger.Logger, sqlDb *sql.DB, config *config.Config) (*Factory, error) {
+	userManager, err := NewUserManager(ctx, logger, sqlDb, config)
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"flag"
 	"fmt"
 	server "monitoring-system/src/api"
 	"monitoring-system/src/config"
@@ -16,31 +17,27 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// type Application struct {
-// 	logger  logger.Logger
-// 	storage storage.Storage
-// 	config  *config.Config
-// 	ctx     context.Context
-// 	cm      camera_manager.CameraManager
-// 	sqlDB   *sql.DB
-// 	modules *modules.Modules
-// }
-
 func main() {
+	configPath := flag.String("config", ".", "Path to the configuration file")
+	saveData := flag.String("save-data", ".", "Path where program data will be saved")
+	staticFiles := flag.String("static-files", "src/web/static", "Path to static files")
+
+	flag.Parse()
+
 	logger, err := logger.NewLogger("development")
 	if err != nil {
 		fmt.Printf("Error creating logger %v", err)
 		return
 	}
 
-	db, err := sql.Open("sqlite3", "./monitoring.db")
+	db, err := sql.Open("sqlite3", fmt.Sprintf("%s/%s", *saveData, "monitoring.db"))
 	if err != nil {
 		logger.Error("Error opening database %v", err)
 		return
 	}
 	defer db.Close()
 
-	appConfig, err := config.LoadConfig(".")
+	appConfig, err := config.LoadConfig(*configPath)
 	if err != nil {
 		logger.Error("Error loading configuration %v", err)
 		return
@@ -58,25 +55,7 @@ func main() {
 		cancel()
 	}()
 
-	// storage, err := storage.NewStorage(logger, awsConfig, appConfig.Aws.S3BucketName)
-	// if err != nil {
-	// 	logger.Error("Error creating storage %v", err)
-	// 	return
-	// }
-
-	// cam := camera.NewWebcam(ctx, 0, logger)
-	// err = cam.Start()
-	// if err != nil {
-	// 	logger.Error("Error starting camera %v", err)
-	// 	return
-	// }
-	// err = cam.RecordVideo(ctx, "video.avi")
-	// if err != nil {
-	// 	logger.Error("Error recording video %v", err)
-	// 	return
-	// }
-
-	factory, err := factory.NewFactory(ctx, logger, db)
+	factory, err := factory.NewFactory(ctx, logger, db, appConfig)
 	if err != nil {
 		logger.Error("Error creating factory %v", err)
 		return
@@ -88,63 +67,19 @@ func main() {
 		return
 	}
 
-	// app := &Application{
-	// 	logger:  logger,
-	// 	storage: storage,
-	// 	config:  appConfig,
-	// 	ctx:     ctx,
-	// 	cm:      cm,
-	// 	sqlDB:   db,
-	// 	modules: modules,
-	// }
-
 	server := server.New(appConfig, logger, factory)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := server.Start(ctx); err != nil {
+		if err := server.Start(ctx, *staticFiles); err != nil {
 			logger.Error("Error starting server %v", err)
 		}
 	}()
-	// go func() {
-	// 	defer wg.Done()
-	// 	logger.Info("Starting application")
-	// 	app.runApplication()
-	// }()
 
 	wg.Wait()
 
 	<-ctx.Done()
 	os.Exit(0)
 }
-
-// func (a *Application) runApplication() {
-
-// 	filename := fmt.Sprintf("video_%s.avi", time.Now().Format("20060102_150405"))
-
-// 	cam, err := a.cm.GetCamera(0)
-// 	if err != nil {
-// 		a.logger.Error("Error getting camera %v", err)
-// 		return
-// 	}
-
-// 	if err := cam.Camera.RecordVideo(a.ctx, filename); err != nil {
-// 		a.logger.Error("Error recording video %v", err)
-// 		return
-// 	}
-// 	a.logger.Info("Video recorded successfully")
-// 	data, err := os.ReadFile(filename)
-// 	if err != nil {
-// 		a.logger.Error("Error reading video file %v", err)
-// 		return
-// 	}
-// 	a.logger.Info("Uploading video to S3")
-
-// 	if err := a.storage.Save(filename, data); err != nil {
-// 		a.logger.Error("Error uploading video to S3 %v", err)
-// 	} else {
-// 		a.logger.Info("Video uploaded successfully")
-// 	}
-// }

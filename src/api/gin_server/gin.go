@@ -51,7 +51,7 @@ func (s *Gin) SetupMiddlewares() {
 
 }
 
-func (s *Gin) SetupApi(ctx context.Context) error {
+func (s *Gin) SetupApi(ctx context.Context, staticFilesPath string) error {
 	//Api Routes
 	s.Gin.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -75,7 +75,7 @@ func (s *Gin) SetupApi(ctx context.Context) error {
 	}
 
 	//Static files
-	s.Gin.StaticFS("/web", http.Dir("src/web/static"))
+	s.Gin.StaticFS("/web", http.Dir(staticFilesPath))
 
 	//Handlers
 	authHandler := handlers.NewAuthHandler(s.factory.UserManager.UseCases, s.validator)

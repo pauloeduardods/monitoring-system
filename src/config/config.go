@@ -12,12 +12,14 @@ type ApiConfig struct {
 }
 
 type Config struct {
-	Api ApiConfig `mapstructure:"api"`
+	Api    ApiConfig `mapstructure:"api"`
+	JwtKey string    `mapstructure:"jwt_key"`
 }
 
 func setDefaults() {
 	viper.SetDefault("api.host", "0.0.0.0")
 	viper.SetDefault("api.port", 4000)
+	viper.SetDefault("jwt_key", "SET_ME")
 }
 
 func LoadConfig(configPath string) (*Config, error) {

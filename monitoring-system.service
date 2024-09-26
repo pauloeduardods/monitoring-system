@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/monitoring-system/monitoring-system.out
+ExecStart=/usr/bin/monitoring-system/monitoring-system.out -config=/etc/monitoring-system -save-data=/usr/share/monitoring-system -static-files=/usr/bin/monitoring-system/web/static
 WorkingDirectory=/usr/bin/monitoring-system
 Restart=always
 RestartSec=5

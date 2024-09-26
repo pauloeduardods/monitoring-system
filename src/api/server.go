@@ -30,12 +30,12 @@ func New(config *config.Config, logger logger.Logger, factory *factory.Factory) 
 	}
 }
 
-func (s *Server) Start(ctx context.Context) error {
+func (s *Server) Start(ctx context.Context, staticFilesPath string) error {
 	s.log.Info("Starting server %s:%d", s.config.Api.Host, s.config.Api.Port)
 
 	s.gin_server.SetupCors()
 	s.gin_server.SetupMiddlewares()
-	s.gin_server.SetupApi(ctx)
+	s.gin_server.SetupApi(ctx, staticFilesPath)
 
 	go func() {
 		<-ctx.Done()
