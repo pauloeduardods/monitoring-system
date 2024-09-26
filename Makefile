@@ -35,10 +35,10 @@ deps:
 	$(GO) get -u ./...
 
 deploy: build
-	mkdir -p $(BIN_INSTALL_DIR)
-	cp $(BINARY) $(BIN_INSTALL_DIR)
-	mkdir -p $(BIN_INSTALL_DIR)/web
-	cp -r $(WEB_DIR)/* $(BIN_INSTALL_DIR)/web
+	sudo mkdir -p $(BIN_INSTALL_DIR)
+	sudo cp $(BINARY) $(BIN_INSTALL_DIR)
+	sudo mkdir -p $(BIN_INSTALL_DIR)/web
+	sudo cp -r $(WEB_DIR)/* $(BIN_INSTALL_DIR)/web
 
 	sudo cp monitoring-system.service /etc/systemd/system/
 	sudo systemctl daemon-reload
