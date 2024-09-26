@@ -17,33 +17,31 @@ type Server struct {
 	gin_server *gin_server.Gin
 	server     *http.Server
 	validator  validator.Validator
-	ctx        context.Context
 }
 
-func New(ctx context.Context, config *config.Config, logger logger.Logger, factory *factory.Factory) *Server {
-	gin := gin_server.New(ctx, logger, factory, validator.NewValidatorImpl())
+func New(config *config.Config, logger logger.Logger, factory *factory.Factory) *Server {
+	gin := gin_server.New(logger, factory, validator.NewValidatorImpl())
 
 	return &Server{
 		config:     config,
 		gin_server: gin,
 		log:        logger,
 		validator:  validator.NewValidatorImpl(),
-		ctx:        ctx,
 	}
 }
 
-func (s *Server) Start() error {
+func (s *Server) Start(ctx context.Context) error {
 	s.log.Info("Starting server %s:%d", s.config.Api.Host, s.config.Api.Port)
 
 	s.gin_server.SetupCors()
 	s.gin_server.SetupMiddlewares()
-	s.gin_server.SetupApi()
+	s.gin_server.SetupApi(ctx)
 
 	go func() {
-		<-s.ctx.Done()
+		<-ctx.Done()
 		s.log.Info("Shutdown Server ...")
 
-		if err := s.server.Shutdown(s.ctx); err != nil {
+		if err := s.server.Shutdown(ctx); err != nil {
 			s.log.Error("Server Shutdown: %v", err)
 		}
 		s.log.Info("Server exiting")
@@ -62,10 +60,10 @@ func (s *Server) Start() error {
 	return nil
 }
 
-func (s *Server) Stop() error {
+func (s *Server) Stop(ctx context.Context) error {
 	if s.server != nil {
 		s.log.Info("Stopping server")
-		if err := s.server.Shutdown(s.ctx); err != nil {
+		if err := s.server.Shutdown(ctx); err != nil {
 			return err
 		}
 	}

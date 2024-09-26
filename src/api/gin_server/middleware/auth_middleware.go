@@ -2,25 +2,28 @@ package middleware
 
 import (
 	"monitoring-system/src/internal/modules/user-manager/domain/auth"
+	"monitoring-system/src/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 )
 
 type AuthMiddleware interface {
 	AuthMiddleware() gin.HandlerFunc
-	AuthMiddlewareWS() gin.HandlerFunc
 	AuthMiddlewareRegister() gin.HandlerFunc
+	AuthMiddlewareWs() gin.HandlerFunc
 }
 
 type AuthMiddlewareImpl struct {
 	auth     auth.AuthService
 	authRepo auth.AuthRepository
+	logger   logger.Logger
 }
 
-func NewAuthMiddleware(a auth.AuthService, repo auth.AuthRepository) AuthMiddleware {
+func NewAuthMiddleware(a auth.AuthService, repo auth.AuthRepository, logger logger.Logger) AuthMiddleware {
 	return &AuthMiddlewareImpl{
 		auth:     a,
 		authRepo: repo,
+		logger:   logger,
 	}
 }
 
@@ -89,7 +92,7 @@ func (a *AuthMiddlewareImpl) AuthMiddlewareRegister() gin.HandlerFunc {
 	}
 }
 
-func (a *AuthMiddlewareImpl) AuthMiddlewareWS() gin.HandlerFunc {
+func (a *AuthMiddlewareImpl) AuthMiddlewareWs() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.Query("token")
 

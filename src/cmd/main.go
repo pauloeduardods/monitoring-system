@@ -98,13 +98,13 @@ func main() {
 	// 	modules: modules,
 	// }
 
-	server := server.New(ctx, appConfig, logger, factory)
+	server := server.New(appConfig, logger, factory)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := server.Start(); err != nil {
+		if err := server.Start(ctx); err != nil {
 			logger.Error("Error starting server %v", err)
 		}
 	}()

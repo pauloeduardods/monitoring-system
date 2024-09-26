@@ -174,6 +174,7 @@ func (w *Camera) Capture() ([]byte, error) {
 		defer buf.Close()
 
 		return buf.GetBytes(), nil
+		// return img.ToBytes(), nil
 	}
 }
 

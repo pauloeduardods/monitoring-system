@@ -1,7 +1,6 @@
 package monitoring_use_cases
 
 import (
-	"fmt"
 	"monitoring-system/src/internal/modules/monitoring/domain/camera"
 	"monitoring-system/src/pkg/app_error"
 	"monitoring-system/src/pkg/logger"
@@ -27,10 +26,9 @@ func (uc *cameraInfoUseCase) GetCameraDetails() ([]camera.CameraDetails, error) 
 	cameras := uc.cameraManager.GetCameras()
 	var cameraDetails []camera.CameraDetails
 
-	for id, cam := range cameras {
+	for _, cam := range cameras {
 		details := cam.GetDetails()
 		cameraDetails = append(cameraDetails, details)
-		uc.logger.Info(fmt.Sprintf("Camera %d - Info: %+v", id, details))
 	}
 
 	if len(cameraDetails) == 0 {

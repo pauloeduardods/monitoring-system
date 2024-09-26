@@ -53,7 +53,7 @@ func (wss *WebSocketServer) Start() error {
 
 	wss.logger.Info("Added notification callback")
 
-	authMiddleware := wss.authMiddleware.AuthMiddlewareWS()
+	authMiddleware := wss.authMiddleware.AuthMiddlewareWs()
 
 	wss.gin.GET("/video/:id", authMiddleware, wss.videoHandler)
 

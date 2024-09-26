@@ -5,6 +5,9 @@ CONFIG_DIR=./src/config
 INTERNAL_DIR=./src/internal
 PKG_DIR=./src/pkg
 
+GOOS?=$(shell go env GOOS)
+GOARCH?=$(shell go env GOARCH)
+
 GO=go
 GOFMT=gofmt
 
