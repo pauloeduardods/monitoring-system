@@ -46,9 +46,9 @@ deploy: build deploy-config
 	sudo systemctl restart monitoring-system.service
 
 deploy-config:
-	@sudo mkdir -p /etc/monitoring-system
-	@sudo JWT_KEY=$$(openssl rand -hex 32); \
-	sed "s/SET_ME/$${JWT_KEY}/g" $(CONFIG_DIR)/config.yaml.template > /etc/monitoring-system/config.yaml
+	sudo mkdir -p /etc/monitoring-system
+	JWT_KEY=$(openssl rand -hex 32); \
+	sed "s/SET_ME/${JWT_KEY}/g" ./config.yaml.template | sudo tee /etc/monitoring-system/config.yaml > /dev/null
 
 .PHONY: all build run test clean deps deploy deploy-config
 
