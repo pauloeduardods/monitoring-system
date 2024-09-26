@@ -46,3 +46,23 @@ deploy: build
 	sudo systemctl restart monitoring-system.service
 
 .PHONY: all build run test clean deps deploy
+
+remove-deploy:
+	sudo systemctl stop monitoring-system.service || true
+	sudo systemctl disable monitoring-system.service || true
+	sudo systemctl daemon-reload
+
+	# Remove the binary, web files, and directories
+	sudo rm -rf $(BIN_INSTALL_DIR)
+
+	# Remove configuration and data directories
+	sudo rm -rf /etc/monitoring-system /usr/share/monitoring-system
+
+	# Remove the systemd service file
+	sudo rm -f /etc/systemd/system/monitoring-system.service
+
+	# Reload systemd daemon
+	sudo systemctl daemon-reload
+
+.PHONY: remove-deploy
+
