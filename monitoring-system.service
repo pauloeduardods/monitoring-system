@@ -1,0 +1,14 @@
+[Unit]
+Description=Monitoring System Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/monitoring-system/monitoring-system.out
+WorkingDirectory=/usr/bin/monitoring-system
+Restart=always
+RestartSec=5
+Environment=GO_ENV=production
+
+[Install]
+WantedBy=multi-user.target

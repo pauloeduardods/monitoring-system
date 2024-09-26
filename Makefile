@@ -4,6 +4,9 @@ CMD_DIR=./src/cmd
 CONFIG_DIR=./src/config
 INTERNAL_DIR=./src/internal
 PKG_DIR=./src/pkg
+WEB_DIR=./src/web
+
+BIN_INSTALL_DIR=/usr/bin/monitoring-system
 
 GOOS?=$(shell go env GOOS)
 GOARCH?=$(shell go env GOARCH)
@@ -31,4 +34,15 @@ clean:
 deps:
 	$(GO) get -u ./...
 
-.PHONY: all build run test clean deps env
+deploy: build
+	mkdir -p $(BIN_INSTALL_DIR)
+	cp $(BINARY) $(BIN_INSTALL_DIR)
+	mkdir -p $(BIN_INSTALL_DIR)/web
+	cp -r $(WEB_DIR)/* $(BIN_INSTALL_DIR)/web
+
+	sudo cp monitoring-system.service /etc/systemd/system/
+	sudo systemctl daemon-reload
+	sudo systemctl enable monitoring-system.service
+	sudo systemctl restart monitoring-system.service
+
+.PHONY: all build run test clean deps deploy
