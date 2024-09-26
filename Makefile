@@ -35,9 +35,9 @@ deps:
 	$(GO) get -u ./...
 
 deploy: build
-	sudo mkdir -p $(BIN_INSTALL_DIR)
+	sudo mkdir -p $(BIN_INSTALL_DIR) $(BIN_INSTALL_DIR)/web /etc/monitoring-system /usr/share/monitoring-system
 	sudo cp $(BINARY) $(BIN_INSTALL_DIR)
-	sudo mkdir -p $(BIN_INSTALL_DIR)/web
+	sudo chmod +x $(BIN_INSTALL_DIR)/monitoring-system.out
 	sudo cp -r $(WEB_DIR)/* $(BIN_INSTALL_DIR)/web
 
 	sudo cp monitoring-system.service /etc/systemd/system/
