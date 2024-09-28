@@ -1,10 +1,12 @@
 package camera
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"monitoring-system/src/internal/modules/monitoring/domain/camera"
 	"monitoring-system/src/pkg/logger"
 	"time"
@@ -166,15 +168,19 @@ func (w *Camera) Capture() ([]byte, error) {
 		return nil, nil
 	case img := <-w.outputChan:
 		defer img.Close()
-		buf, err := gocv.IMEncode(gocv.JPEGFileExt, img)
+		image, err := img.ToImage()
 		if err != nil {
-			w.logger.Error("Error encoding image: %v\n", err)
+			w.logger.Error("Error to get image.Image from gocv.Mat", err)
 			return nil, err
 		}
-		defer buf.Close()
 
-		return buf.GetBytes(), nil
-		// return img.ToBytes(), nil
+		buffer := new(bytes.Buffer)
+		if err := jpeg.Encode(buffer, image, &jpeg.Options{Quality: 75}); err != nil {
+			w.logger.Error("Error encoding image", err)
+			return nil, err
+		}
+
+		return buffer.Bytes(), nil
 	}
 }
 
