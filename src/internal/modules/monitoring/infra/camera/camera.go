@@ -12,6 +12,14 @@ import (
 	"gocv.io/x/gocv"
 )
 
+const (
+	MINIMUM_AREA = 4000
+	FPS          = 15
+	FRAME_WIDTH  = 640
+	FRAME_HEIGHT = 480
+	CODEC        = "MJPG"
+)
+
 type Camera struct {
 	deviceID   int
 	webcam     *gocv.VideoCapture
@@ -82,10 +90,10 @@ func (w *Camera) Start() error {
 		return fmt.Errorf("error starting webcam device %d fps: %f", w.deviceID, infos.FPS)
 	}
 
-	webcam.Set(gocv.VideoCaptureFrameWidth, 640)
-	webcam.Set(gocv.VideoCaptureFrameHeight, 480)
-	webcam.Set(gocv.VideoCaptureFPS, 15)
-	webcam.Set(gocv.VideoCaptureFOURCC, float64(webcam.ToCodec("MJPG")))
+	webcam.Set(gocv.VideoCaptureFrameWidth, FRAME_WIDTH)
+	webcam.Set(gocv.VideoCaptureFrameHeight, FRAME_HEIGHT)
+	webcam.Set(gocv.VideoCaptureFPS, FPS)
+	webcam.Set(gocv.VideoCaptureFOURCC, float64(webcam.ToCodec(CODEC)))
 
 	w.details.Infos = infos
 
@@ -178,12 +186,21 @@ func (w *Camera) Capture() ([]byte, error) {
 	}
 }
 
-func (w *Camera) RecordVideo(ctx context.Context, filename string) error {
-	writer, err := gocv.VideoWriterFile(filename, "MJPG", w.details.Infos.FPS, w.details.Infos.Width, w.details.Infos.Height, true)
+func (w *Camera) RecordVideo(ctx context.Context, filename string, motionOnly bool) error {
+	writer, err := gocv.VideoWriterFile(filename, CODEC, FPS, FRAME_WIDTH, FRAME_HEIGHT, true)
 	if err != nil {
 		return err
 	}
 	defer writer.Close()
+
+	imgDelta := gocv.NewMat()
+	defer imgDelta.Close()
+
+	imgThresh := gocv.NewMat()
+	defer imgThresh.Close()
+
+	mog2 := gocv.NewBackgroundSubtractorMOG2()
+	defer mog2.Close()
 
 	for {
 		select {
@@ -194,7 +211,33 @@ func (w *Camera) RecordVideo(ctx context.Context, filename string) error {
 			w.logger.Warning("Recording stopped by context cancellation")
 			return nil
 		case img := <-w.outputChan:
-			writer.Write(img)
+			if motionOnly {
+				mog2.Apply(img, &imgDelta)
+
+				gocv.Threshold(imgDelta, &imgThresh, 25, 255, gocv.ThresholdBinary)
+
+				kernel := gocv.GetStructuringElement(gocv.MorphRect, image.Pt(3, 3))
+				gocv.Dilate(imgThresh, &imgThresh, kernel)
+				kernel.Close()
+
+				contours := gocv.FindContours(imgThresh, gocv.RetrievalExternal, gocv.ChainApproxSimple)
+
+				for i := 0; i < contours.Size(); i++ {
+					area := gocv.ContourArea(contours.At(i))
+					if area < MINIMUM_AREA {
+						continue
+					}
+					err := writer.Write(img)
+					if err != nil {
+						w.logger.Error("Error while writing frame")
+					}
+				}
+			} else {
+				err := writer.Write(img)
+				if err != nil {
+					w.logger.Error("Error while writing frame")
+				}
+			}
 		}
 	}
 }

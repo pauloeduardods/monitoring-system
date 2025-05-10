@@ -7,7 +7,7 @@ import (
 type CameraService interface {
 	Start() error
 	Close() error
-	RecordVideo(ctx context.Context, filename string) error
+	RecordVideo(ctx context.Context, filename string, motionOnly bool) error
 	Capture() ([]byte, error)
 	Done() <-chan struct{}
 	GetDetails() CameraDetails
