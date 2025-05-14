@@ -97,7 +97,7 @@ func (cm *cameraManager) newWebcam(deviceId interface{}) error {
 		case <-cm.ctx.Done():
 		case <-webcam.Done():
 			cm.execute(func() error {
-				cm.logger.Info("Camera %d disconnected", id)
+				cm.logger.Info("Camera %s disconnected", id)
 				delete(cm.cameras, id)
 				return nil
 			})
