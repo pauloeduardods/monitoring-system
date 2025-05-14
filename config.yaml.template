@@ -2,3 +2,14 @@ api:
   host: 0.0.0.0
   port: 4000
 jwt_key: SET_ME
+camera:
+  fps: 15
+  width: 640
+  height: 480
+  codec: MJPG
+  motion_detection: true
+  min_area: 4000
+  check_system_cameras: true
+  stream:
+    - name: stream1
+      url: rtsp://<username>:<password>@<ip>:<port>/<path>

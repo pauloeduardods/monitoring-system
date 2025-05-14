@@ -14,13 +14,13 @@ type CameraService interface {
 }
 
 type CameraDetails struct {
-	ID    int
-	Name  string //TODO: Save name in the database
+	ID    string
+	Name  string
 	Infos Infos
 }
 
 type Infos struct {
-	DeviceID int
+	DeviceID interface{}
 	Width    int
 	Height   int
 	FPS      float64

@@ -18,6 +18,7 @@ import (
 )
 
 func main() {
+	fmt.Println("Starting monitoring system...")
 	configPath := flag.String("config", ".", "Path to the configuration file")
 	saveData := flag.String("save-data", ".", "Path where program data will be saved")
 	staticFiles := flag.String("static-files", "src/web/static", "Path to static files")

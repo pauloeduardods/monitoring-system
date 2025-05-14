@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"monitoring-system/src/config"
 	"monitoring-system/src/internal/modules/monitoring/domain/camera"
 	"monitoring-system/src/pkg/logger"
 	"time"
@@ -14,16 +15,9 @@ import (
 	"gocv.io/x/gocv"
 )
 
-const (
-	MINIMUM_AREA = 4000
-	FPS          = 15
-	FRAME_WIDTH  = 640
-	FRAME_HEIGHT = 480
-	CODEC        = "MJPG"
-)
-
 type Camera struct {
-	deviceID   int
+	id         string
+	deviceID   interface{}
 	webcam     *gocv.VideoCapture
 	logger     logger.Logger
 	outputChan chan gocv.Mat
@@ -31,16 +25,38 @@ type Camera struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	done       chan struct{}
+	config     *config.CameraConfig
 }
 
-func NewCameraService(ctx context.Context, deviceID int, logger logger.Logger) camera.CameraService {
+func NewCameraService(ctx context.Context, id string, deviceID interface{}, logger logger.Logger, config *config.CameraConfig) camera.CameraService {
+	if deviceID == nil {
+		return nil
+	}
+
+	switch v := deviceID.(type) {
+	case int:
+		if v < 0 {
+			logger.Error("deviceID is not a valid int")
+			return nil
+		}
+	case string:
+		if v == "" {
+			logger.Error("deviceID is not a valid string")
+			return nil
+		}
+	default:
+		logger.Error("deviceID is not of type int or string")
+		return nil
+	}
+
 	cameraDetails := &camera.CameraDetails{
-		ID:    deviceID,
+		ID:    id,
 		Name:  fmt.Sprintf("Camera %d", deviceID),
 		Infos: camera.Infos{},
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	return &Camera{
+		id:         id,
 		deviceID:   deviceID,
 		logger:     logger,
 		ctx:        ctx,
@@ -48,6 +64,7 @@ func NewCameraService(ctx context.Context, deviceID int, logger logger.Logger) c
 		outputChan: make(chan gocv.Mat),
 		details:    cameraDetails,
 		done:       make(chan struct{}),
+		config:     config,
 	}
 }
 
@@ -92,10 +109,10 @@ func (w *Camera) Start() error {
 		return fmt.Errorf("error starting webcam device %d fps: %f", w.deviceID, infos.FPS)
 	}
 
-	webcam.Set(gocv.VideoCaptureFrameWidth, FRAME_WIDTH)
-	webcam.Set(gocv.VideoCaptureFrameHeight, FRAME_HEIGHT)
-	webcam.Set(gocv.VideoCaptureFPS, FPS)
-	webcam.Set(gocv.VideoCaptureFOURCC, float64(webcam.ToCodec(CODEC)))
+	webcam.Set(gocv.VideoCaptureFrameWidth, float64(w.config.Width))
+	webcam.Set(gocv.VideoCaptureFrameHeight, float64(w.config.Height))
+	webcam.Set(gocv.VideoCaptureFPS, float64(w.config.FPS))
+	webcam.Set(gocv.VideoCaptureFOURCC, float64(webcam.ToCodec(w.config.Codec)))
 
 	w.details.Infos = infos
 
@@ -193,7 +210,7 @@ func (w *Camera) Capture() ([]byte, error) {
 }
 
 func (w *Camera) RecordVideo(ctx context.Context, filename string, motionOnly bool) error {
-	writer, err := gocv.VideoWriterFile(filename, CODEC, FPS, FRAME_WIDTH, FRAME_HEIGHT, true)
+	writer, err := gocv.VideoWriterFile(filename, w.config.Codec, float64(w.config.FPS), w.config.Width, w.config.Height, w.config.MotionDetection)
 	if err != nil {
 		return err
 	}
@@ -230,7 +247,7 @@ func (w *Camera) RecordVideo(ctx context.Context, filename string, motionOnly bo
 
 				for i := 0; i < contours.Size(); i++ {
 					area := gocv.ContourArea(contours.At(i))
-					if area < MINIMUM_AREA {
+					if area < float64(w.config.MinArea) {
 						continue
 					}
 					err := writer.Write(img)

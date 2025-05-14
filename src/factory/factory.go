@@ -53,8 +53,8 @@ func NewUserManager(ctx context.Context, logger logger.Logger, sqlDb *sql.DB, co
 	}, nil
 }
 
-func NewMonitoring(ctx context.Context, logger logger.Logger) (*Monitoring, error) {
-	monitoring, err := monitoring_use_cases.NewCameraManager(ctx, logger)
+func NewMonitoring(ctx context.Context, logger logger.Logger, config *config.Config) (*Monitoring, error) {
+	monitoring, err := monitoring_use_cases.NewCameraManager(ctx, logger, &config.Camera)
 	if err != nil {
 		logger.Error("Error creating monitoring camera manager %v", err)
 		return nil, err
@@ -73,7 +73,7 @@ func NewFactory(ctx context.Context, logger logger.Logger, sqlDb *sql.DB, config
 		return nil, err
 	}
 
-	monitoring, err := NewMonitoring(ctx, logger)
+	monitoring, err := NewMonitoring(ctx, logger, config)
 	if err != nil {
 		return nil, err
 	}
