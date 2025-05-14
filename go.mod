@@ -11,7 +11,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/spf13/viper v1.18.2
-	gocv.io/x/gocv v0.38.0
+	gocv.io/x/gocv v0.41.0
 	golang.org/x/crypto v0.26.0
 )
 

@@ -7,20 +7,20 @@ import (
 type CameraService interface {
 	Start() error
 	Close() error
-	RecordVideo(ctx context.Context, filename string) error
+	RecordVideo(ctx context.Context, filename string, motionOnly bool) error
 	Capture() ([]byte, error)
 	Done() <-chan struct{}
 	GetDetails() CameraDetails
 }
 
 type CameraDetails struct {
-	ID    int
-	Name  string //TODO: Save name in the database
+	ID    string
+	Name  string
 	Infos Infos
 }
 
 type Infos struct {
-	DeviceID int
+	DeviceID interface{}
 	Width    int
 	Height   int
 	FPS      float64

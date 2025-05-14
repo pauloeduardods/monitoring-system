@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"monitoring-system/src/config"
 	"monitoring-system/src/internal/modules/monitoring/domain/camera"
 	"monitoring-system/src/pkg/logger"
 	"time"
@@ -15,7 +16,8 @@ import (
 )
 
 type Camera struct {
-	deviceID   int
+	id         string
+	deviceID   interface{}
 	webcam     *gocv.VideoCapture
 	logger     logger.Logger
 	outputChan chan gocv.Mat
@@ -23,16 +25,38 @@ type Camera struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	done       chan struct{}
+	config     *config.CameraConfig
 }
 
-func NewCameraService(ctx context.Context, deviceID int, logger logger.Logger) camera.CameraService {
+func NewCameraService(ctx context.Context, id string, deviceID interface{}, logger logger.Logger, config *config.CameraConfig) camera.CameraService {
+	if deviceID == nil {
+		return nil
+	}
+
+	switch v := deviceID.(type) {
+	case int:
+		if v < 0 {
+			logger.Error("deviceID is not a valid int")
+			return nil
+		}
+	case string:
+		if v == "" {
+			logger.Error("deviceID is not a valid string")
+			return nil
+		}
+	default:
+		logger.Error("deviceID is not of type int or string")
+		return nil
+	}
+
 	cameraDetails := &camera.CameraDetails{
-		ID:    deviceID,
+		ID:    id,
 		Name:  fmt.Sprintf("Camera %d", deviceID),
 		Infos: camera.Infos{},
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	return &Camera{
+		id:         id,
 		deviceID:   deviceID,
 		logger:     logger,
 		ctx:        ctx,
@@ -40,6 +64,7 @@ func NewCameraService(ctx context.Context, deviceID int, logger logger.Logger) c
 		outputChan: make(chan gocv.Mat),
 		details:    cameraDetails,
 		done:       make(chan struct{}),
+		config:     config,
 	}
 }
 
@@ -84,10 +109,10 @@ func (w *Camera) Start() error {
 		return fmt.Errorf("error starting webcam device %d fps: %f", w.deviceID, infos.FPS)
 	}
 
-	webcam.Set(gocv.VideoCaptureFrameWidth, 640)
-	webcam.Set(gocv.VideoCaptureFrameHeight, 480)
-	webcam.Set(gocv.VideoCaptureFPS, 15)
-	webcam.Set(gocv.VideoCaptureFOURCC, float64(webcam.ToCodec("MJPG")))
+	webcam.Set(gocv.VideoCaptureFrameWidth, float64(w.config.Width))
+	webcam.Set(gocv.VideoCaptureFrameHeight, float64(w.config.Height))
+	webcam.Set(gocv.VideoCaptureFPS, float64(w.config.FPS))
+	webcam.Set(gocv.VideoCaptureFOURCC, float64(webcam.ToCodec(w.config.Codec)))
 
 	w.details.Infos = infos
 
@@ -184,12 +209,21 @@ func (w *Camera) Capture() ([]byte, error) {
 	}
 }
 
-func (w *Camera) RecordVideo(ctx context.Context, filename string) error {
-	writer, err := gocv.VideoWriterFile(filename, "MJPG", w.details.Infos.FPS, w.details.Infos.Width, w.details.Infos.Height, true)
+func (w *Camera) RecordVideo(ctx context.Context, filename string, motionOnly bool) error {
+	writer, err := gocv.VideoWriterFile(filename, w.config.Codec, float64(w.config.FPS), w.config.Width, w.config.Height, w.config.MotionDetection)
 	if err != nil {
 		return err
 	}
 	defer writer.Close()
+
+	imgDelta := gocv.NewMat()
+	defer imgDelta.Close()
+
+	imgThresh := gocv.NewMat()
+	defer imgThresh.Close()
+
+	mog2 := gocv.NewBackgroundSubtractorMOG2()
+	defer mog2.Close()
 
 	for {
 		select {
@@ -200,7 +234,33 @@ func (w *Camera) RecordVideo(ctx context.Context, filename string) error {
 			w.logger.Warning("Recording stopped by context cancellation")
 			return nil
 		case img := <-w.outputChan:
-			writer.Write(img)
+			if motionOnly {
+				mog2.Apply(img, &imgDelta)
+
+				gocv.Threshold(imgDelta, &imgThresh, 25, 255, gocv.ThresholdBinary)
+
+				kernel := gocv.GetStructuringElement(gocv.MorphRect, image.Pt(3, 3))
+				gocv.Dilate(imgThresh, &imgThresh, kernel)
+				kernel.Close()
+
+				contours := gocv.FindContours(imgThresh, gocv.RetrievalExternal, gocv.ChainApproxSimple)
+
+				for i := 0; i < contours.Size(); i++ {
+					area := gocv.ContourArea(contours.At(i))
+					if area < float64(w.config.MinArea) {
+						continue
+					}
+					err := writer.Write(img)
+					if err != nil {
+						w.logger.Error("Error while writing frame")
+					}
+				}
+			} else {
+				err := writer.Write(img)
+				if err != nil {
+					w.logger.Error("Error while writing frame")
+				}
+			}
 		}
 	}
 }

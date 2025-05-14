@@ -2,8 +2,10 @@ package monitoring_use_cases
 
 import (
 	"context"
+	"crypto/md5"
 	"errors"
 	"fmt"
+	"monitoring-system/src/config"
 	"monitoring-system/src/internal/modules/monitoring/domain/camera"
 	camera_infra "monitoring-system/src/internal/modules/monitoring/infra/camera"
 	"monitoring-system/src/pkg/logger"
@@ -16,7 +18,7 @@ const DARWIN_MAX_CAMERAS = 3
 
 type CameraManager interface {
 	CheckSystemCameras() error
-	GetCameras() map[int]camera.CameraService
+	GetCameras() map[string]camera.CameraService
 	Close() error
 }
 
@@ -26,21 +28,23 @@ type command struct {
 }
 
 type cameraManager struct {
-	cameras     map[int]camera.CameraService
+	cameras     map[string]camera.CameraService
 	logger      logger.Logger
 	ctx         context.Context
 	cancel      context.CancelFunc
 	commandChan chan command
+	config      *config.CameraConfig
 }
 
-func NewCameraManager(ctx context.Context, logger logger.Logger) (CameraManager, error) {
+func NewCameraManager(ctx context.Context, logger logger.Logger, config *config.CameraConfig) (CameraManager, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	cm := &cameraManager{
-		cameras:     make(map[int]camera.CameraService),
+		cameras:     make(map[string]camera.CameraService),
 		logger:      logger,
 		ctx:         ctx,
 		cancel:      cancel,
 		commandChan: make(chan command),
+		config:      config,
 	}
 
 	go cm.run()
@@ -63,31 +67,42 @@ func (cm *cameraManager) execute(action func() error) error {
 	return <-cmd.result
 }
 
-func (cm *cameraManager) newWebcam(deviceId int) error {
-	if _, exists := cm.cameras[deviceId]; exists {
+func (cm *cameraManager) newWebcam(deviceId interface{}) error {
+	var id string
+	switch v := deviceId.(type) {
+	case int:
+		id = fmt.Sprintf("%d", v)
+	case string:
+		id = fmt.Sprintf("%x", md5.Sum([]byte(v)))
+	default:
+		cm.logger.Error("deviceID is not of type int or string")
+		return nil
+	}
+
+	if _, exists := cm.cameras[id]; exists {
 		return errors.New("camera already exists")
 	}
 
-	webcam := camera_infra.NewCameraService(cm.ctx, deviceId, cm.logger)
+	webcam := camera_infra.NewCameraService(cm.ctx, id, deviceId, cm.logger, cm.config)
 
 	err := webcam.Start()
 	if err != nil {
 		return err
 	}
 
-	cm.cameras[deviceId] = webcam
+	cm.cameras[id] = webcam
 
-	go func(deviceId int) {
+	go func(id string) {
 		select {
 		case <-cm.ctx.Done():
 		case <-webcam.Done():
 			cm.execute(func() error {
-				cm.logger.Info("Camera %d disconnected", deviceId)
-				delete(cm.cameras, deviceId)
+				cm.logger.Info("Camera %s disconnected", id)
+				delete(cm.cameras, id)
 				return nil
 			})
 		}
-	}(deviceId)
+	}(id)
 
 	return nil
 }
@@ -101,9 +116,6 @@ func getDeviceID(deviceName string) int {
 func (cm *cameraManager) checkMacCameras() error {
 	return cm.execute(func() error {
 		for i := 0; i < DARWIN_MAX_CAMERAS; i++ {
-			if _, exists := cm.cameras[i]; exists {
-				continue
-			}
 			err := cm.newWebcam(i)
 			if err != nil {
 				continue
@@ -125,9 +137,6 @@ func (cm *cameraManager) checkLinuxCameras() error {
 			deviceName := device.Name()
 			if strings.HasPrefix(deviceName, "video") {
 				deviceID := getDeviceID(deviceName)
-				if _, exists := cm.cameras[deviceID]; exists {
-					continue
-				}
 				err := cm.newWebcam(deviceID)
 				if err != nil {
 					continue
@@ -136,6 +145,19 @@ func (cm *cameraManager) checkLinuxCameras() error {
 		}
 		return nil
 	})
+}
+
+func (cm *cameraManager) connectStreamCamera() error {
+	cm.logger.Info("Connecting to stream camera")
+
+	for _, stream := range cm.config.Stream {
+		err := cm.newWebcam(stream.URL)
+		if err != nil {
+			cm.logger.Error("Error connecting to stream camera %s: %v", stream.URL, err)
+			continue
+		}
+	}
+	return nil
 }
 
 func (cm *cameraManager) checkSystemCameras() error {
@@ -153,6 +175,11 @@ func (cm *cameraManager) checkSystemCameras() error {
 
 func (cm *cameraManager) CheckSystemCameras() error {
 	err := cm.checkSystemCameras()
+	if err != nil {
+		return err
+	}
+
+	err = cm.connectStreamCamera()
 	if err != nil {
 		return err
 	}
@@ -189,6 +216,6 @@ func (cm *cameraManager) Close() error {
 	})
 }
 
-func (cm *cameraManager) GetCameras() map[int]camera.CameraService {
+func (cm *cameraManager) GetCameras() map[string]camera.CameraService {
 	return cm.cameras
 }

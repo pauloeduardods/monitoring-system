@@ -11,15 +11,43 @@ type ApiConfig struct {
 	Port int    `mapstructure:"port"`
 }
 
+type StreamConfig struct {
+	URL        string `mapstructure:"url"`
+	StreamName string `mapstructure:"stream_name"`
+}
+
+type CameraConfig struct {
+	FPS                int            `mapstructure:"fps"`
+	Width              int            `mapstructure:"width"`
+	Height             int            `mapstructure:"height"`
+	Codec              string         `mapstructure:"codec"`
+	MotionDetection    bool           `mapstructure:"motion_detection"`
+	MinArea            int            `mapstructure:"min_area"`
+	CheckSystemCameras bool           `mapstructure:"check_system_cameras"`
+	Stream             []StreamConfig `mapstructure:"stream"`
+}
+
 type Config struct {
-	Api    ApiConfig `mapstructure:"api"`
-	JwtKey string    `mapstructure:"jwt_key"`
+	Api    ApiConfig    `mapstructure:"api"`
+	JwtKey string       `mapstructure:"jwt_key"`
+	Camera CameraConfig `mapstructure:"camera"`
 }
 
 func setDefaults() {
 	viper.SetDefault("api.host", "0.0.0.0")
 	viper.SetDefault("api.port", 4000)
 	viper.SetDefault("jwt_key", "SET_ME")
+	viper.SetDefault("camera", CameraConfig{
+		FPS:                15,
+		Width:              640,
+		Height:             480,
+		Codec:              "MJPG",
+		MotionDetection:    true,
+		MinArea:            4000,
+		CheckSystemCameras: true,
+		Stream:             []StreamConfig{},
+	})
+
 }
 
 func LoadConfig(configPath string) (*Config, error) {

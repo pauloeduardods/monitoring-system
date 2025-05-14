@@ -9,7 +9,6 @@ import (
 	"monitoring-system/src/pkg/app_error"
 	"monitoring-system/src/pkg/logger"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -33,12 +32,7 @@ func NewWebSocketServer(ctx context.Context, logger logger.Logger, gin *gin.Rout
 }
 
 func (wss *WebSocketServer) videoHandler(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.Error(app_error.NewApiError(http.StatusBadRequest, "Invalid camera id"))
-		return
-	}
-	cam, ok := wss.factory.Monitoring.CameraManager.GetCameras()[id]
+	cam, ok := wss.factory.Monitoring.CameraManager.GetCameras()[c.Param("id")]
 	if !ok || cam == nil {
 		c.Error(app_error.NewApiError(http.StatusNotFound, "Camera not found"))
 		return
