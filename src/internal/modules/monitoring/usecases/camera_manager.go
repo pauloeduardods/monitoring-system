@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"math"
 	"monitoring-system/src/config"
 	"monitoring-system/src/internal/modules/monitoring/domain/camera"
 	camera_infra "monitoring-system/src/internal/modules/monitoring/infra/camera"
@@ -12,6 +13,8 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
+	"time"
 )
 
 const DARWIN_MAX_CAMERAS = 3
@@ -34,6 +37,8 @@ type cameraManager struct {
 	cancel      context.CancelFunc
 	commandChan chan command
 	config      *config.CameraConfig
+	reconnectMu sync.Mutex
+	reconnect   map[string]struct{}
 }
 
 func NewCameraManager(ctx context.Context, logger logger.Logger, config *config.CameraConfig) (CameraManager, error) {
@@ -92,19 +97,62 @@ func (cm *cameraManager) newWebcam(deviceId interface{}) error {
 
 	cm.cameras[id] = webcam
 
-	go func(id string) {
+	go func(id string, deviceId interface{}) {
 		select {
 		case <-cm.ctx.Done():
 		case <-webcam.Done():
 			cm.execute(func() error {
 				cm.logger.Info("Camera %s disconnected", id)
 				delete(cm.cameras, id)
+				go cm.handleReconnect(id, deviceId)
 				return nil
 			})
 		}
-	}(id)
+	}(id, deviceId)
 
 	return nil
+}
+
+func (cm *cameraManager) handleReconnect(id string, deviceId interface{}) {
+	cm.reconnectMu.Lock()
+	if cm.reconnect == nil {
+		cm.reconnect = make(map[string]struct{})
+	}
+	if _, exists := cm.reconnect[id]; exists {
+		cm.reconnectMu.Unlock()
+		return
+	}
+	cm.reconnect[id] = struct{}{}
+	cm.reconnectMu.Unlock()
+
+	defer func() {
+		cm.reconnectMu.Lock()
+		delete(cm.reconnect, id)
+		cm.reconnectMu.Unlock()
+	}()
+
+	const maxRetries = 10
+	baseDelay := time.Second * 5
+
+	for attempt := 1; attempt <= maxRetries && cm.ctx.Err() == nil; attempt++ {
+		cm.logger.Info("Trying to reconnect camera %s (attempt %d)", id, attempt)
+		err := cm.newWebcam(deviceId)
+		if err == nil {
+			cm.logger.Info("Camera %s reconnected successfully", id)
+			return
+		}
+		delay := time.Duration(float64(baseDelay) * math.Pow(2, float64(attempt-1)))
+		if delay > time.Minute {
+			delay = time.Minute
+		}
+		cm.logger.Warning("Failed to reconnect camera %s: %v. Retrying in %v", id, err, delay)
+		select {
+		case <-time.After(delay):
+		case <-cm.ctx.Done():
+			return
+		}
+	}
+	cm.logger.Error("Failed to reconnect camera %s after %d attempts", id, maxRetries)
 }
 
 func getDeviceID(deviceName string) int {

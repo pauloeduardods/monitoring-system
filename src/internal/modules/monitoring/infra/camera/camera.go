@@ -10,6 +10,7 @@ import (
 	"monitoring-system/src/config"
 	"monitoring-system/src/internal/modules/monitoring/domain/camera"
 	"monitoring-system/src/pkg/logger"
+	"sync"
 	"time"
 
 	"gocv.io/x/gocv"
@@ -26,6 +27,7 @@ type Camera struct {
 	cancel     context.CancelFunc
 	done       chan struct{}
 	config     *config.CameraConfig
+	closeOnce  sync.Once
 }
 
 func NewCameraService(ctx context.Context, id string, deviceID interface{}, logger logger.Logger, config *config.CameraConfig) camera.CameraService {
@@ -126,8 +128,13 @@ func (w *Camera) Start() error {
 func (w *Camera) Close() error {
 	w.logger.Warning("Closing webcam", w.deviceID)
 	w.cancel()
-	close(w.done)
-	return w.webcam.Close()
+	w.closeOnce.Do(func() {
+		close(w.done)
+	})
+	if w.webcam != nil {
+		return w.webcam.Close()
+	}
+	return nil
 }
 
 func (w *Camera) capture() {
